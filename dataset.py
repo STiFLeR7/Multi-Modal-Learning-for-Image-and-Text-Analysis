@@ -40,6 +40,6 @@ class CustomDataset(Dataset):
         # Tokenize caption
         caption = self.captions[idx]
         caption_tokens = self.tokenizer(caption, padding='max_length', max_length=32, return_tensors="pt").input_ids
-        caption_tokens = caption_tokens.squeeze()  # Remove extra dimension
+        caption_tokens = caption_tokens.squeeze()
         
         return image, caption_tokens
