@@ -1,45 +1,51 @@
-import os
-import json
-import torch
 from torch.utils.data import Dataset
 from PIL import Image
-import torchvision.transforms as transforms
 from transformers import BertTokenizer
+import torchvision.transforms as transforms
+import json
+import os
+import torch
 
 class CustomDataset(Dataset):
-    def __init__(self, images_path, captions_path):
+    def __init__(self, images_path, captions_path, max_length=20):
         self.images_path = images_path
-        self.captions_path = captions_path
-        
-        # Load captions data
-        with open(captions_path, 'r') as f:
-            captions_data = json.load(f)
-        
-        # Extract image IDs and captions
-        self.image_ids = [ann['image_id'] for ann in captions_data['annotations']]
-        self.captions = [ann['caption'] for ann in captions_data['annotations']]
-        
-        # Initialize BERT tokenizer and image transformation
-        self.tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+        self.captions = self.load_captions(captions_path)
+        self.image_files = list(self.captions.keys())
         self.transform = transforms.Compose([
             transforms.Resize((224, 224)),
-            transforms.ToTensor(),
-            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+            transforms.ToTensor()
         ])
-    
+        self.tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+        self.max_length = max_length
+
+    def load_captions(self, captions_path):
+        with open(captions_path, 'r') as f:
+            annotations = json.load(f)
+        captions = {}
+        for ann in annotations['annotations']:
+            img_id = ann['image_id']
+            img_filename = f'{img_id:012d}.jpg'
+            captions[img_filename] = ann['caption']
+        return captions
+
     def __len__(self):
-        return len(self.image_ids)
-    
+        return len(self.image_files)
+
     def __getitem__(self, idx):
-        # Load image
-        image_id = self.image_ids[idx]
-        image_path = os.path.join(self.images_path, f"{str(image_id).zfill(12)}.jpg")
-        image = Image.open(image_path).convert('RGB')
+        img_name = self.image_files[idx]
+        img_path = os.path.join(self.images_path, img_name)
+        image = Image.open(img_path).convert('RGB')
         image = self.transform(image)
+
+        caption = self.captions[img_name]
+        tokens = self.tokenizer(
+            caption,
+            max_length=self.max_length,
+            padding='max_length',
+            truncation=True,
+            return_tensors="pt"
+        )
         
-        # Tokenize caption
-        caption = self.captions[idx]
-        caption_tokens = self.tokenizer(caption, padding='max_length', max_length=32, return_tensors="pt").input_ids
-        caption_tokens = caption_tokens.squeeze()
-        
-        return image, caption_tokens
+        input_ids = tokens['input_ids'].squeeze(0)  # shape [max_length]
+
+        return image, input_ids  # image shape [3, 224, 224], caption shape [max_length]
