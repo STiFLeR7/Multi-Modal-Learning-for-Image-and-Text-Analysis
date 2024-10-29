@@ -1,34 +1,38 @@
-import os
-import json
-from PIL import Image
-import torchvision.transforms as transforms
 from transformers import BertTokenizer
+from PIL import Image
+from torchvision import transforms
 
-IMAGES_PATH = 'D:/Multi-Modal-Learning-for-Image-and-Text-Analysis/coco2017/train2017'  # Update this to your images path
-CAPTIONS_PATH = 'D:/Multi-Modal-Learning-for-Image-and-Text-Analysis/coco2017/annotations/captions_train2017.json'  # Update this to your captions path
+# Initialize the tokenizer for text processing
+tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
 
-# Image transformations
-transform = transforms.Compose([
-    transforms.Resize((224, 224)),
-    transforms.ToTensor(),
-    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+# Define the transformation pipeline (only basic transform, like resizing if needed)
+image_transform = transforms.Compose([
+    transforms.Resize((224, 224))  # Only resizing, no ToTensor() here
 ])
 
-# Load and process each image
-def load_image(image_path):
-    image = Image.open(image_path).convert('RGB')
-    return transform(image)
-
-# Load captions data
-with open(CAPTIONS_PATH, 'r') as f:
-    captions_data = json.load(f)
-
-# Process captions and save them
-tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
-captions = []
-for annotation in captions_data['annotations']:
-    caption = annotation['caption']
-    tokens = tokenizer(caption, padding='max_length', max_length=32, return_tensors="pt").input_ids
-    captions.append(tokens.squeeze().tolist())
+def preprocess_image(image_path):
+    """
+    Loads an image from a file path, converts it to RGB, and applies transformations.
     
-print("Data preprocessing completed.")
+    Parameters:
+    - image_path (str): The path to the image file.
+    
+    Returns:
+    - PIL Image: Preprocessed image ready for further transformation.
+    """
+    image = Image.open(image_path).convert("RGB")
+    return image_transform(image)  # Return as PIL image, without ToTensor
+
+def preprocess_text(caption):
+    """
+    Tokenizes and encodes the caption text for BERT input.
+    
+    Parameters:
+    - caption (str): The text caption associated with an image.
+    
+    Returns:
+    - input_ids (Tensor): Token IDs tensor.
+    - attention_mask (Tensor): Attention mask tensor.
+    """
+    encoding = tokenizer(caption, padding="max_length", max_length=32, truncation=True, return_tensors="pt")
+    return encoding["input_ids"].squeeze(0), encoding["attention_mask"].squeeze(0)

@@ -1,51 +1,65 @@
-from torch.utils.data import Dataset
-from PIL import Image
-from transformers import BertTokenizer
-import torchvision.transforms as transforms
 import json
 import os
 import torch
+from torch.utils.data import Dataset
+from torchvision import transforms
+from data_preprocessing import preprocess_image, preprocess_text
 
-class CustomDataset(Dataset):
-    def __init__(self, images_path, captions_path, max_length=20):
-        self.images_path = images_path
-        self.captions = self.load_captions(captions_path)
-        self.image_files = list(self.captions.keys())
-        self.transform = transforms.Compose([
-            transforms.Resize((224, 224)),
-            transforms.ToTensor()
-        ])
-        self.tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
-        self.max_length = max_length
+# Define the complete transformation pipeline, including ToTensor and normalization
+final_transform = transforms.Compose([
+    transforms.ToTensor(),
+    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+])
 
-    def load_captions(self, captions_path):
-        with open(captions_path, 'r') as f:
-            annotations = json.load(f)
-        captions = {}
-        for ann in annotations['annotations']:
-            img_id = ann['image_id']
-            img_filename = f'{img_id:012d}.jpg'
-            captions[img_filename] = ann['caption']
-        return captions
+class COCODataset(Dataset):
+    def __init__(self, image_dir, annotation_file, transform=None):
+        """
+        COCO Dataset for image and caption pairs.
+        
+        Parameters:
+        - image_dir (str): Path to the directory containing images.
+        - annotation_file (str): Path to the JSON annotation file.
+        - transform (callable, optional): Optional transform to be applied on an image.
+        """
+        self.image_dir = image_dir
+        self.annotations = json.load(open(annotation_file, "r"))["annotations"]
+        self.transform = transform or final_transform  # Use final_transform if no other transform is provided
 
     def __len__(self):
-        return len(self.image_files)
+        return len(self.annotations)
 
     def __getitem__(self, idx):
-        img_name = self.image_files[idx]
-        img_path = os.path.join(self.images_path, img_name)
-        image = Image.open(img_path).convert('RGB')
-        image = self.transform(image)
-
-        caption = self.captions[img_name]
-        tokens = self.tokenizer(
-            caption,
-            max_length=self.max_length,
-            padding='max_length',
-            truncation=True,
-            return_tensors="pt"
-        )
+        annotation = self.annotations[idx]
         
-        input_ids = tokens['input_ids'].squeeze(0)  # shape [max_length]
+        # Construct the full path for the image
+        image_path = os.path.join(self.image_dir, f"{annotation['image_id']:012d}.jpg")
+        caption = annotation["caption"]
+        
+        # Preprocess image (returns PIL image)
+        image = preprocess_image(image_path)
+        
+        # Apply the final transform to convert to tensor and normalize
+        if self.transform:
+            image = self.transform(image)
+        
+        # Preprocess text
+        input_ids, attention_mask = preprocess_text(caption)
+        
+        return {
+            "image": image,                  # Should be a tensor
+            "input_ids": input_ids,          # Tensor from preprocess_text
+            "attention_mask": attention_mask # Tensor from preprocess_text
+        }
 
-        return image, input_ids  # image shape [3, 224, 224], caption shape [max_length]
+# Testing the Dataset class
+if __name__ == "__main__":
+    dataset = COCODataset(
+        image_dir="D:/COCO-DATASET/coco2017/train2017",
+        annotation_file="D:/COCO-DATASET/coco2017/annotations/captions_train2017.json"
+    )
+    
+    # Print first sample to verify
+    sample = dataset[0]
+    print("Image Tensor Shape:", sample["image"].shape)
+    print("Input IDs:", sample["input_ids"])
+    print("Attention Mask:", sample["attention_mask"])
