@@ -40,11 +40,17 @@ for epoch in range(num_epochs):
         images, captions = images.to(device), captions.to(device)
 
         # Forward pass
-        outputs = model(images, captions)
-        
+        outputs = model(images, captions)  # outputs: (batch_size, sequence_length, vocab_size)
+
+        # Reshape outputs and captions for CrossEntropyLoss
+        # outputs should be (batch_size * sequence_length, vocab_size)
+        # captions should be (batch_size * sequence_length)
+        outputs = outputs.view(-1, vocab_size)  # Reshape outputs
+        captions = captions.view(-1)  # Reshape captions to match
+
         # Compute loss
-        loss = criterion(outputs.view(-1, vocab_size), captions.view(-1))
-        
+        loss = criterion(outputs, captions)
+
         # Backward pass and optimization
         optimizer.zero_grad()
         loss.backward()
