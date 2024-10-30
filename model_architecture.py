@@ -1,40 +1,39 @@
 import torch
 import torch.nn as nn
-from transformers import BertModel
+import torchvision.models as models
 
-class MultiModalModel(nn.Module):
-    def __init__(self, num_classes, text_embedding_dim=768, image_embedding_dim=512, fusion_dim=1024):
-        super(MultiModalModel, self).__init__()
+class YourModel(nn.Module):
+    def __init__(self, vocab_size, embed_size, hidden_size):
+        super(YourModel, self).__init__()
         
-        # Text encoder (BERT)
-        self.text_encoder = BertModel.from_pretrained("bert-base-uncased")
-        self.text_fc = nn.Linear(text_embedding_dim, fusion_dim)
+        # Image feature extractor (using ResNet)
+        self.resnet = models.resnet50(weights='DEFAULT')
+        self.resnet.fc = nn.Linear(self.resnet.fc.in_features, hidden_size)
         
-        # Image encoder (CNN - e.g., ResNet)
-        self.image_encoder = nn.Sequential(
-            nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1),
-            nn.ReLU(),
-            nn.MaxPool2d(2),
-            nn.Conv2d(64, image_embedding_dim, kernel_size=3, stride=1, padding=1),
-            nn.ReLU(),
-            nn.AdaptiveAvgPool2d((1, 1))
-        )
-        self.image_fc = nn.Linear(image_embedding_dim, fusion_dim)
+        # Text embedding layer
+        self.embedding = nn.Embedding(vocab_size, embed_size)
         
-        # Fusion layer
-        self.fc = nn.Linear(fusion_dim * 2, num_classes)
+        # LSTM for text processing
+        self.lstm = nn.LSTM(embed_size, hidden_size, batch_first=True)
         
-    def forward(self, image, text_input_ids, text_attention_mask):
-        # Text encoding
-        text_features = self.text_encoder(text_input_ids, attention_mask=text_attention_mask).last_hidden_state[:, 0, :]
-        text_features = self.text_fc(text_features)
+        # Final linear layer for output
+        self.fc = nn.Linear(hidden_size * 2, vocab_size)
         
-        # Image encoding
-        image_features = self.image_encoder(image).squeeze()
-        image_features = self.image_fc(image_features)
+    def forward(self, images, captions):
+        # Process images
+        image_features = self.resnet(images)
+
+        # Process captions
+        embedded_captions = self.embedding(captions)
+        lstm_out, _ = self.lstm(embedded_captions)
         
-        # Fusion
-        fused_features = torch.cat((text_features, image_features), dim=1)
-        output = self.fc(fused_features)
+        # Get the last output of LSTM
+        lstm_out = lstm_out[:, -1, :]
         
-        return output
+        # Concatenate features
+        combined_features = torch.cat((image_features, lstm_out), dim=1)
+        
+        # Final output
+        outputs = self.fc(combined_features)
+        
+        return outputs

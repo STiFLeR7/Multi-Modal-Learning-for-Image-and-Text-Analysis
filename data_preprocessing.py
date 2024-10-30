@@ -1,38 +1,38 @@
-from transformers import BertTokenizer
+import json
+import os
 from PIL import Image
+import torch
 from torchvision import transforms
 
-# Initialize the tokenizer for text processing
-tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
+class DataPreprocessor:
+    def __init__(self, image_dir, caption_file):
+        self.image_dir = image_dir
+        self.caption_file = caption_file
+        self.transform = transforms.Compose([
+            transforms.Resize((224, 224)),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+        ])
 
-# Define the transformation pipeline (only basic transform, like resizing if needed)
-image_transform = transforms.Compose([
-    transforms.Resize((224, 224))  # Only resizing, no ToTensor() here
-])
+    def load_data(self):
+        with open(self.caption_file, 'r') as f:
+            captions_data = json.load(f)
+        
+        captions = {}
+        for ann in captions_data['annotations']:
+            image_id = ann['image_id']
+            caption = ann['caption']
+            if image_id in captions:
+                captions[image_id].append(caption)
+            else:
+                captions[image_id] = [caption]
+                
+        return captions
 
-def preprocess_image(image_path):
-    """
-    Loads an image from a file path, converts it to RGB, and applies transformations.
-    
-    Parameters:
-    - image_path (str): The path to the image file.
-    
-    Returns:
-    - PIL Image: Preprocessed image ready for further transformation.
-    """
-    image = Image.open(image_path).convert("RGB")
-    return image_transform(image)  # Return as PIL image, without ToTensor
-
-def preprocess_text(caption):
-    """
-    Tokenizes and encodes the caption text for BERT input.
-    
-    Parameters:
-    - caption (str): The text caption associated with an image.
-    
-    Returns:
-    - input_ids (Tensor): Token IDs tensor.
-    - attention_mask (Tensor): Attention mask tensor.
-    """
-    encoding = tokenizer(caption, padding="max_length", max_length=32, truncation=True, return_tensors="pt")
-    return encoding["input_ids"].squeeze(0), encoding["attention_mask"].squeeze(0)
+    def process_image(self, image_id):
+        image_path = os.path.join(self.image_dir, f"{image_id:012d}.jpg")
+        if not os.path.exists(image_path):
+            raise FileNotFoundError(f"Image file does not exist: {image_path}")
+        
+        image = Image.open(image_path).convert("RGB")
+        return self.transform(image)

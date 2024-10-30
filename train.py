@@ -1,62 +1,55 @@
 import torch
-from torch.utils.data import DataLoader
-from torch.optim import Adam
 import torch.nn as nn
+import torch.optim as optim
+from torch.utils.data import DataLoader
 from dataset import COCODataset
-from model_architecture import MultiModalModel
-from data_preprocessing import tokenizer  # Import tokenizer to get vocabulary size
+from model_architecture import YourModel
+from data_preprocessing import DataPreprocessor
 
-# Define paths for the dataset
-image_dir = "D:/COCO-DATASET/coco2017/train2017"
-annotation_file = "D:/COCO-DATASET/coco2017/annotations/captions_train2017.json"
+# Set up device for computation
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# Initialize the dataset and DataLoader
-dataset = COCODataset(
-    image_dir=image_dir,
-    annotation_file=annotation_file,
-    transform=None  # Ensures that final_transform from dataset.py is used
-)
-dataloader = DataLoader(dataset, batch_size=4, shuffle=True, collate_fn=None)
+# Hyperparameters
+batch_size = 8
+learning_rate = 0.001
+num_epochs = 10
+vocab_size = 30522  # Adjust based on your tokenizer
+embed_size = 256
+hidden_size = 512
 
-# Get the vocabulary size from the tokenizer for num_classes
-vocab_size = tokenizer.vocab_size
+# Load and preprocess data
+image_dir = 'D:/COCO-DATASET/coco2017/train2017'
+caption_file = 'D:/COCO-DATASET/coco2017/annotations/captions_train2017.json'
 
-# Initialize the model, loss function, and optimizer
-model = MultiModalModel(num_classes=vocab_size)
+preprocessor = DataPreprocessor(image_dir, caption_file)
+captions = preprocessor.load_data()
+
+# Initialize dataset and dataloader
+dataset = COCODataset(image_dir=image_dir, captions=captions, transform=preprocessor.transform)
+data_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
+
+# Initialize model, loss function, and optimizer
+model = YourModel(vocab_size, embed_size, hidden_size).to(device)
 criterion = nn.CrossEntropyLoss()
-optimizer = Adam(model.parameters(), lr=1e-4)
+optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 
 # Training loop
-num_epochs = 5
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-model.to(device)
-
+model.train()
 for epoch in range(num_epochs):
-    model.train()
-    running_loss = 0.0
-
-    for batch in dataloader:
-        # Move data to device
-        images = batch["image"].to(device)
-        input_ids = batch["input_ids"].to(device)
-        attention_mask = batch["attention_mask"].to(device)
+    for images, captions in data_loader:
+        images, captions = images.to(device), captions.to(device)
 
         # Forward pass
-        optimizer.zero_grad()
-        outputs = model(images, input_ids, attention_mask)
+        outputs = model(images, captions)
         
-        # Reshape outputs and targets for CrossEntropyLoss
-        outputs = outputs.view(-1, vocab_size)  # Flatten to (batch_size * seq_len, vocab_size)
-        targets = input_ids.view(-1)            # Flatten targets to (batch_size * seq_len)
-
-        # Calculate loss and backpropagate
-        loss = criterion(outputs, targets)
+        # Compute loss
+        loss = criterion(outputs.view(-1, vocab_size), captions.view(-1))
+        
+        # Backward pass and optimization
+        optimizer.zero_grad()
         loss.backward()
         optimizer.step()
         
-        running_loss += loss.item()
+        print(f'Epoch [{epoch + 1}/{num_epochs}], Loss: {loss.item():.4f}')
 
-    avg_loss = running_loss / len(dataloader)
-    print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {avg_loss:.4f}")
-
-print("Training complete!")
+print("Training complete.")
