@@ -68,7 +68,8 @@ model.to(device)
 # Training loop
 model.train()
 for epoch in range(num_epochs):
-    for images, captions in data_loader:
+    running_loss = 0.0  # To keep track of the cumulative loss for the epoch
+    for batch_idx, (images, captions) in enumerate(data_loader):
         # Move images and captions to device
         images = images.to(device)
         captions = captions.to(device)
@@ -77,8 +78,8 @@ for epoch in range(num_epochs):
         outputs = model(images, captions)
         
         # Reshape outputs and captions to match expected dimensions
-        outputs = outputs.view(-1, vocab_size)  # Flatten for batch*seq length by vocab size
-        captions = captions.view(-1)  # Flatten for batch*seq length
+        outputs = outputs.view(-1, vocab_size)
+        captions = captions.view(-1)
         
         # Adjust to ensure batch size match before loss calculation
         if outputs.size(0) != captions.size(0):
@@ -94,6 +95,13 @@ for epoch in range(num_epochs):
         loss.backward()
         optimizer.step()
         
-        print(f'Epoch [{epoch + 1}/{num_epochs}], Loss: {loss.item():.4f}')
+        # Accumulate the loss and print every 10 batches
+        running_loss += loss.item()
+        if (batch_idx + 1) % 10 == 0:
+            print(f'Epoch [{epoch + 1}/{num_epochs}], Batch [{batch_idx + 1}/{len(data_loader)}], Loss: {loss.item():.4f}')
+
+    # Print the average loss for the epoch
+    print(f'Epoch [{epoch + 1}/{num_epochs}], Average Loss: {running_loss / len(data_loader):.4f}')
+
 
 print("Training complete.")
