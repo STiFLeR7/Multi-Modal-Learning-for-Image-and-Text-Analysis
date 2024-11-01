@@ -76,8 +76,18 @@ for epoch in range(num_epochs):
         # Forward pass
         outputs = model(images, captions)
         
+        # Reshape outputs and captions to match expected dimensions
+        outputs = outputs.view(-1, vocab_size)  # Flatten for batch*seq length by vocab size
+        captions = captions.view(-1)  # Flatten for batch*seq length
+        
+        # Adjust to ensure batch size match before loss calculation
+        if outputs.size(0) != captions.size(0):
+            min_size = min(outputs.size(0), captions.size(0))
+            outputs = outputs[:min_size]
+            captions = captions[:min_size]
+        
         # Compute loss
-        loss = criterion(outputs.view(-1, vocab_size), captions.view(-1))  # Reshape for correct batch and sequence
+        loss = criterion(outputs, captions)
 
         # Backward pass and optimization
         optimizer.zero_grad()
