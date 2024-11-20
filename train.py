@@ -1,76 +1,84 @@
 import torch
-import torch.nn as nn
-import torch.optim as optim
+from torch import nn, optim
 from torch.utils.data import DataLoader
-from dataset import COCODataset, collate_fn
-import torchvision.models as models
+from torchvision import transforms
+from vit_model import VisionTransformer  # Assuming this is correct import
+from coco_loader import get_coco_dataloader
+from collections import defaultdict
 
-# Model class
-class YourModel(nn.Module):
-    def __init__(self, vocab_size, embed_size, hidden_size):
-        super(YourModel, self).__init__()
-        
-        # Image feature extractor
-        self.resnet = models.resnet50(weights='DEFAULT')
-        self.resnet.fc = nn.Linear(self.resnet.fc.in_features, hidden_size)
-        
-        # Text embedding and LSTM
-        self.embedding = nn.Embedding(vocab_size, embed_size)
-        self.lstm = nn.LSTM(embed_size, hidden_size, batch_first=True)
-        
-        # Final output layer
-        self.fc = nn.Linear(hidden_size * 2, vocab_size)
+# Define paths
+root_dir = 'D:/COCO-DATASET/coco2017/train2017'
+annotation_file = 'D:/COCO-DATASET/coco2017/annotations/captions_train2017.json'
 
-    def forward(self, images, captions):
-        image_features = self.resnet(images)  # Shape: (batch_size, hidden_size)
-        embedded_captions = self.embedding(captions)  # Shape: (batch_size, seq_len, embed_size)
-        lstm_out, _ = self.lstm(embedded_captions)  # Shape: (batch_size, seq_len, hidden_size)
-        lstm_out = lstm_out[:, -1, :]  # Get the last LSTM output for each sequence
-        
-        combined_features = torch.cat((image_features, lstm_out), dim=1)  # Shape: (batch_size, hidden_size * 2)
-        outputs = self.fc(combined_features)  # Shape: (batch_size, vocab_size)
-        return outputs
+# Transformations for data augmentation and normalization
+transform = transforms.Compose([
+    transforms.Resize((224, 224)),
+    transforms.ToTensor(),
+    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+])
 
-# Parameters
-batch_size = 8
-learning_rate = 0.001
-num_epochs = 10
-vocab_size = 30522  # Adjust based on your tokenizer's vocab size
-embed_size = 256
-hidden_size = 512
-
-# Initialize dataset and dataloader
-image_dir = "D:/COCO-DATASET/coco2017/train2017"
-caption_file = "D:/COCO-DATASET/coco2017/annotations/captions_train2017.json"
-
-dataset = COCODataset(image_dir=image_dir, caption_file=caption_file, transform=None)
-data_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, collate_fn=collate_fn)
-
-# Model, loss function, and optimizer
-model = YourModel(vocab_size, embed_size, hidden_size)
+# Define the model and criterion
+DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+model = VisionTransformer(pretrained=True, num_classes=80).to(DEVICE)
 criterion = nn.CrossEntropyLoss()
-optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+optimizer = optim.Adam(model.parameters(), lr=0.0001)
 
-# Training loop
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-model = model.to(device)
-model.train()
+# Create a simple tokenizer (if you're not using a pretrained tokenizer)
+# This is an example, you may want to use a more sophisticated tokenizer for real applications
+class SimpleTokenizer:
+    def __init__(self):
+        self.word_to_idx = defaultdict(lambda: len(self.word_to_idx))  # Automatically assigns new index
+        self.word_to_idx["<PAD>"] = 0  # Padding token for sequences
+        self.idx_to_word = {idx: word for word, idx in self.word_to_idx.items()}
 
-for epoch in range(num_epochs):
-    for images, captions in data_loader:
-        images, captions = images.to(device), captions.to(device)
+    def encode(self, caption):
+        return [self.word_to_idx[word] for word in caption.split()]
 
-        # Forward pass
-        outputs = model(images, captions)  # Shape: (batch_size, vocab_size)
+    def decode(self, indices):
+        return " ".join([self.idx_to_word[idx] for idx in indices])
 
-        # Flatten outputs and captions for the criterion
-        loss = criterion(outputs.view(-1, vocab_size), captions[:, -1])  # Taking only last token for simplicity
+tokenizer = SimpleTokenizer()
 
-        # Backward pass and optimization
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
+def train_model():
+    # Load the dataloaders
+    train_loader, val_loader, _ = get_coco_dataloader(
+        batch_size=32, transform=transform, root_dir=root_dir, annotation_file=annotation_file)
 
-        print(f"Epoch [{epoch + 1}/{num_epochs}], Loss: {loss.item():.4f}")
+    # Training loop with print statements for debugging
+    num_epochs = 5
+    for epoch in range(num_epochs):
+        model.train()  # Set the model to training mode
+        running_loss = 0.0
+        for batch_idx, (images, captions) in enumerate(train_loader):
+            images = images.to(DEVICE)
 
-print("Training complete.")
+            # Tokenize captions: convert string captions to integer token indices
+            captions = [tokenizer.encode(caption) for caption in captions]
+            captions = torch.tensor(captions).to(DEVICE)  # Convert to tensor and move to device
+
+            # Zero the parameter gradients
+            optimizer.zero_grad()
+
+            # Forward pass
+            outputs = model(images)
+
+            # Assume the model is a classifier and captions are the targets (for classification)
+            # CrossEntropyLoss expects target labels to be class indices
+            loss = criterion(outputs, captions)  # Captions should be class indices (integer labels)
+
+            # Backward pass
+            loss.backward()
+
+            # Optimize the model
+            optimizer.step()
+
+            running_loss += loss.item()
+
+            # Debugging print statement
+            if batch_idx % 10 == 0:  # Print every 10th batch
+                print(f"Epoch [{epoch+1}/{num_epochs}], Batch [{batch_idx}], Loss: {running_loss/(batch_idx+1):.4f}")
+        
+        print(f"Epoch [{epoch+1}/{num_epochs}] finished. Average loss: {running_loss/len(train_loader):.4f}")
+
+if __name__ == '__main__':
+    train_model()
