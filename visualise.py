@@ -42,11 +42,13 @@ class ImageCaptionDataset(Dataset):
         # Ensure image shape is [batch_size, channels, height, width]
         image = torch.tensor(image, dtype=torch.float32)
         
-        # Check the shape of the image, if it's [64, 3, 224, 224], we want to permute it
-        if image.dim() == 4 and image.shape[1] == 64:
-            image = image.permute(0, 2, 3, 1)  # Change the shape to [batch_size, height, width, channels]
+        # Check if the image tensor has the expected shape: [channels, height, width]
+        if image.dim() > 4:
+            image = image.squeeze(0)  # Remove extra dimension if any (e.g., [1, 3, 224, 224])
         
-        image = image.permute(0, 3, 1, 2)  # Now the shape is [batch_size, channels, height, width]
+        # Ensure image has the correct number of dimensions
+        if image.dim() == 3:
+            image = image.unsqueeze(0)  # Add batch dimension (e.g., [1, 3, 224, 224])
 
         # Load caption
         caption_path = os.path.join(self.data_dir, self.caption_files[idx])
