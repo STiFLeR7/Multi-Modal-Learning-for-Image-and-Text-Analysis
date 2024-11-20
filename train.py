@@ -4,8 +4,6 @@ from torch.utils.data import DataLoader
 from torchvision import transforms
 from vit_model import VisionTransformer  # Assuming this is correct import
 from coco_loader import get_coco_dataloader
-from collections import defaultdict
-import torch.nn.functional as F
 
 # Define paths
 root_dir = 'D:/COCO-DATASET/coco2017/train2017'
@@ -24,26 +22,40 @@ model = VisionTransformer(pretrained=True, num_classes=80).to(DEVICE)
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.Adam(model.parameters(), lr=0.0001)
 
-# Create a simple tokenizer (if you're not using a pretrained tokenizer)
-# This is an example, you may want to use a more sophisticated tokenizer for real applications
-class SimpleTokenizer:
-    def __init__(self):
-        self.word_to_idx = defaultdict(lambda: len(self.word_to_idx))  # Automatically assigns new index
-        self.word_to_idx["<PAD>"] = 0  # Padding token for sequences
+# Tokenizer definition
+class Tokenizer:
+    def __init__(self, vocab):
+        self.vocab = vocab
+        self.word_to_idx = {word: idx for idx, word in enumerate(vocab)}
         self.idx_to_word = {idx: word for word, idx in self.word_to_idx.items()}
+        self.pad_token = "<PAD>"
+        self.start_token = "<START>"
+        self.end_token = "<END>"
 
     def encode(self, caption):
-        return [self.word_to_idx[word] for word in caption.split()]
+        # Split caption into words and convert to indices
+        return [self.word_to_idx.get(word, self.word_to_idx["<UNK>"]) for word in caption.split()]
 
     def decode(self, indices):
-        return " ".join([self.idx_to_word[idx] for idx in indices])
+        # Convert indices back to words
+        return ' '.join([self.idx_to_word[idx] for idx in indices])
 
-tokenizer = SimpleTokenizer()
+# Example vocab, you should load it from your dataset
+vocab = ["<PAD>", "<START>", "<END>", "<UNK>"] + ["word1", "word2", "word3", "word4"]  # Extend this with actual vocabulary
+tokenizer = Tokenizer(vocab)
 
-# Padding function
+# Define max caption length for padding and truncation
+max_caption_length = 11  # Adjusted to the expected length
+
 def pad_sequence(captions, max_length):
-    # Pad each caption to max_length
-    padded_captions = [caption + [tokenizer.word_to_idx["<PAD>"]] * (max_length - len(caption)) for caption in captions]
+    # Pad or truncate each caption to max_length
+    padded_captions = []
+    for caption in captions:
+        # Truncate the caption if it exceeds max_length
+        caption = caption[:max_length]
+        # Pad the caption if it's shorter than max_length
+        padded_caption = caption + [tokenizer.word_to_idx["<PAD>"]] * (max_length - len(caption))
+        padded_captions.append(padded_caption)
     return padded_captions
 
 def train_model():
@@ -53,24 +65,28 @@ def train_model():
 
     # Training loop with print statements for debugging
     num_epochs = 5
-    max_caption_length = 10  # Set a fixed maximum length for padding
-    
     for epoch in range(num_epochs):
         model.train()  # Set the model to training mode
         running_loss = 0.0
         for batch_idx, (images, captions) in enumerate(train_loader):
             images = images.to(DEVICE)
 
-            # Here we need to extract the caption text if it's a tuple (image_id, caption)
-            # Assuming captions are in a tuple (image_id, caption) format, so we extract only the caption text
+            # captions is a list of tuples (image_id, caption)
+            # Extract just the captions from the list of tuples
             captions = [caption[1] for caption in captions]  # caption[1] contains the actual text
 
             # Tokenize captions: convert string captions to integer token indices
             captions = [tokenizer.encode(caption) for caption in captions]
-            
-            # Pad captions to a fixed length
+
+            # Pad or truncate captions to a fixed length
             captions = pad_sequence(captions, max_caption_length)
-            captions = torch.tensor(captions).to(DEVICE)  # Convert to tensor and move to device
+
+            # Check if batch size of images and captions match
+            print(f"Batch [{batch_idx}], Image batch size: {images.size(0)}, Caption batch size: {len(captions)}")
+            assert images.size(0) == len(captions), "Batch size of images and captions do not match."
+
+            # Convert captions to tensor and move to device
+            captions = torch.tensor(captions).to(DEVICE)
 
             # Zero the parameter gradients
             optimizer.zero_grad()
