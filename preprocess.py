@@ -5,7 +5,7 @@ import numpy as np
 
 # Path to your images and captions
 image_dir = 'D:/COCO-DATASET/coco2017/train2017'  # Adjust this path
-caption_file = "D:/COCO-DATASET/coco2017/annotations/captions_train2017.json"   # Adjust this path
+caption_file = "D:/COCO-DATASET/coco2017/annotations/captions_train2017.json"  # Adjust this path
 
 # Read the captions from the JSON file
 with open(caption_file, 'r') as f:
@@ -27,12 +27,18 @@ for annotation in captions_data['annotations']:
 def load_image(image_path, target_size=(224, 224)):
     """
     Load an image from the given path and preprocess it (resize to target size).
+    Convert grayscale images to RGB.
     """
     try:
         image = Image.open(image_path)  # Open the image using PIL
+        # Convert grayscale images to RGB
+        if image.mode != 'RGB':
+            image = image.convert('RGB')  # Convert to RGB if not already
+
         image = image.resize(target_size)  # Resize the image to the target size
         image = np.array(image).astype(np.float32)  # Convert to NumPy array and use float32 for memory efficiency
         image = image / 255.0  # Normalize pixel values to [0, 1]
+
         if image.shape == (224, 224, 3):
             return image
         else:
