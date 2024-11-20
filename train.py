@@ -5,6 +5,7 @@ from torchvision import transforms
 from vit_model import VisionTransformer  # Assuming this is correct import
 from coco_loader import get_coco_dataloader
 from collections import defaultdict
+import torch.nn.functional as F
 
 # Define paths
 root_dir = 'D:/COCO-DATASET/coco2017/train2017'
@@ -39,6 +40,12 @@ class SimpleTokenizer:
 
 tokenizer = SimpleTokenizer()
 
+# Padding function
+def pad_sequence(captions, max_length):
+    # Pad each caption to max_length
+    padded_captions = [caption + [tokenizer.word_to_idx["<PAD>"]] * (max_length - len(caption)) for caption in captions]
+    return padded_captions
+
 def train_model():
     # Load the dataloaders
     train_loader, val_loader, _ = get_coco_dataloader(
@@ -46,14 +53,23 @@ def train_model():
 
     # Training loop with print statements for debugging
     num_epochs = 5
+    max_caption_length = 10  # Set a fixed maximum length for padding
+    
     for epoch in range(num_epochs):
         model.train()  # Set the model to training mode
         running_loss = 0.0
         for batch_idx, (images, captions) in enumerate(train_loader):
             images = images.to(DEVICE)
 
+            # Here we need to extract the caption text if it's a tuple (image_id, caption)
+            # Assuming captions are in a tuple (image_id, caption) format, so we extract only the caption text
+            captions = [caption[1] for caption in captions]  # caption[1] contains the actual text
+
             # Tokenize captions: convert string captions to integer token indices
             captions = [tokenizer.encode(caption) for caption in captions]
+            
+            # Pad captions to a fixed length
+            captions = pad_sequence(captions, max_caption_length)
             captions = torch.tensor(captions).to(DEVICE)  # Convert to tensor and move to device
 
             # Zero the parameter gradients
