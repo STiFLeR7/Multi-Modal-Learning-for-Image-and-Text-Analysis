@@ -1,57 +1,85 @@
+import torch
+from torch.utils.data import Dataset, DataLoader
+from PIL import Image
 import os
 import json
-import torch
-from torch.utils.data import Dataset, DataLoader  # Import DataLoader here
-from PIL import Image
-from collections import defaultdict
+import nltk
+import random
+from torchvision import transforms
+
+nltk.download('punkt')
 
 class CocoDataset(Dataset):
-    def __init__(self, root_dir, annotation_file, transform=None):
-        self.root_dir = root_dir
-        self.annotation_file = annotation_file
+    def __init__(self, images_dir, captions_file, transform=None):
+        self.images_dir = images_dir
         self.transform = transform
-        
-        # Load the annotations from the correct file
-        with open(annotation_file, 'r') as f:
-            self.annotations = json.load(f)
-        
-        # Create a mapping of image_id to captions
-        self.image_id_to_caption = defaultdict(list)
-        for ann in self.annotations['annotations']:
-            image_id = ann['image_id']
-            caption = ann['caption']
-            self.image_id_to_caption[image_id].append(caption)
-        
-        self.image_ids = list(self.image_id_to_caption.keys())
-    
+
+        # Load the captions file
+        with open(captions_file, 'r') as f:
+            self.data = json.load(f)
+
+        # Prepare the list of image ids and corresponding captions
+        self.image_ids = []
+        self.captions = []
+
+        for item in self.data['images']:
+            image_id = item['id']
+            # Only process images that have associated captions
+            captions_for_image = [caption['caption'] for caption in self.data['annotations'] if caption['image_id'] == image_id]
+            if captions_for_image:
+                self.image_ids.append(image_id)
+                self.captions.append(captions_for_image)
+
     def __len__(self):
         return len(self.image_ids)
-    
+
+    def load_image(self, image_id):
+        image_path = os.path.join(self.images_dir, f'{image_id}.jpg')
+        try:
+            return Image.open(image_path)
+        except FileNotFoundError:
+            print(f"Warning: Image {image_path} does not exist.")
+            return None  # or return a placeholder image
+
     def __getitem__(self, idx):
-        # Get the image id
         image_id = self.image_ids[idx]
-        
-        # Get the image file path
-        img_path = os.path.join(self.root_dir, f'{str(image_id).zfill(12)}.jpg')
-        image = Image.open(img_path).convert("RGB")
-        
-        # Get the caption(s) for this image
-        captions = self.image_id_to_caption[image_id]
-        
-        # Apply transformation if provided
+        captions = self.captions[idx]
+
+        image = self.load_image(image_id)
+        if image is None:
+            return None  # Skip if image is missing
+
         if self.transform:
             image = self.transform(image)
-        
-        return image, captions
 
-# Function to load the dataloaders
-def get_coco_dataloader(batch_size, transform, root_dir, annotation_file, missing_caption='No caption available'):
-    coco_dataset = CocoDataset(root_dir, annotation_file, transform)
-    train_size = int(0.8 * len(coco_dataset))
-    val_size = len(coco_dataset) - train_size
-    train_dataset, val_dataset = torch.utils.data.random_split(coco_dataset, [train_size, val_size])
-    
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=4)
-    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=4)
-    
-    return train_loader, val_loader, {}
+        # Randomly select a caption for the image
+        caption = random.choice(captions)
+
+        # Tokenize the caption
+        caption_tokens = nltk.word_tokenize(caption.lower())
+
+        return image, caption_tokens
+
+# Parameters
+images_dir = 'D:/COCO-DATASET/coco2017/images'  # Update with your images path
+captions_file = 'D:/COCO-DATASET/coco2017/annotations/captions_train2017.json'  # Update with your annotations path
+
+# Transformations
+transform = transforms.Compose([
+    transforms.Resize((224, 224)),
+    transforms.ToTensor(),
+    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+])
+
+# Dataset and DataLoader
+dataset = CocoDataset(images_dir, captions_file, transform=transform)
+dataloader = DataLoader(dataset, batch_size=4, shuffle=True)
+
+# Iterate through the dataset
+for i, (images, captions) in enumerate(dataloader):
+    if images is None:
+        continue  # Skip the batch if any image is missing
+
+    print(f"Batch {i} processed.")
+    print(f"Image batch shape: {images.size()}")
+    print(f"Captions: {captions}")
