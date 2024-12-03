@@ -1,46 +1,87 @@
-import os
 import json
+import os
 
-# Set directory containing the JSON files
-PREPROCESSED_DATA_DIR = './preprocessed_data'
+PREPROCESSED_DATA_DIR = './preprocessed_data'  # Path to your preprocessed data
 OUTPUT_FILE = './preprocessed_data/annotations.json'
 
-# Combine all JSON files into one
-def combine_json_files(input_dir, output_file):
+def combine_json_files(preprocessed_data_dir, output_file):
     combined_data = {
+        "images": [],
         "annotations": [],
+        "categories": []
     }
 
-    # Loop through all JSON files in the directory
-    for filename in os.listdir(input_dir):
-        if filename.endswith('.json'):
-            file_path = os.path.join(input_dir, filename)
+    for filename in os.listdir(preprocessed_data_dir):
+        if filename.endswith(".json"):
+            file_path = os.path.join(preprocessed_data_dir, filename)
             with open(file_path, 'r') as f:
                 try:
+                    # Load the data from the file
                     data = json.load(f)
-                    # Check if the data is a dictionary or a list
-                    if isinstance(data, dict):
-                        # If it's a dictionary, extract annotations
-                        combined_data["annotations"].extend(data.get("annotations", []))
-                    elif isinstance(data, list):
-                        # If it's a list, loop through its items
+                    print(f"Processing file: {filename}")
+
+                    # If data is a string, try to load it again as JSON
+                    if isinstance(data, str):
+                        print(f"Found string in {filename}, trying to load it as JSON.")
+                        try:
+                            data = json.loads(data)  # Try parsing the string as JSON
+                        except json.JSONDecodeError:
+                            print(f"Skipping invalid string in {filename}: Could not decode as JSON.")
+                            continue
+
+                    # If data is a list, iterate through it
+                    if isinstance(data, list):
                         for item in data:
                             if isinstance(item, dict):
-                                combined_data["annotations"].extend(item.get("annotations", []))
-                            elif isinstance(item, str):
-                                # If the item is a string, treat it as a caption
-                                # Wrap it inside a dictionary to maintain structure
-                                combined_data["annotations"].append({"caption": item})
+                                annotations = item.get('annotations', [])
+                                if isinstance(annotations, list):
+                                    combined_data["annotations"].extend(annotations)
+                                else:
+                                    print(f"Skipping invalid 'annotations' in {filename}: Expected list, found {type(annotations)}")
+
+                                images = item.get('images', [])
+                                if isinstance(images, list):
+                                    combined_data["images"].extend(images)
+                                else:
+                                    print(f"Skipping invalid 'images' in {filename}: Expected list, found {type(images)}")
+
+                                categories = item.get('categories', [])
+                                if isinstance(categories, list):
+                                    combined_data["categories"].extend(categories)
+                                else:
+                                    print(f"Skipping invalid 'categories' in {filename}: Expected list, found {type(categories)}")
                             else:
-                                print(f"Skipping invalid item in {file_path}: {item}")
-                except json.JSONDecodeError as e:
-                    print(f"Error loading {file_path}: {e}")
+                                print(f"Skipping invalid item in {filename}: Expected dictionary, found {type(item)}")
 
-    # Write the combined data to a new JSON file
-    with open(output_file, 'w') as output_f:
-        json.dump(combined_data, output_f, indent=4)
+                    # If data is a dictionary, process normally
+                    elif isinstance(data, dict):
+                        annotations = data.get('annotations', [])
+                        if isinstance(annotations, list):
+                            combined_data["annotations"].extend(annotations)
+                        else:
+                            print(f"Skipping invalid 'annotations' in {filename}: Expected list, found {type(annotations)}")
 
+                        images = data.get('images', [])
+                        if isinstance(images, list):
+                            combined_data["images"].extend(images)
+                        else:
+                            print(f"Skipping invalid 'images' in {filename}: Expected list, found {type(images)}")
+
+                        categories = data.get('categories', [])
+                        if isinstance(categories, list):
+                            combined_data["categories"].extend(categories)
+                        else:
+                            print(f"Skipping invalid 'categories' in {filename}: Expected list, found {type(categories)}")
+                    else:
+                        print(f"Skipping {filename}: Expected dictionary or list structure, but got {type(data)}")
+
+                except Exception as e:
+                    print(f"Skipping invalid item in {filename}: {str(e)}")
+    
+    # Save the combined data
+    with open(output_file, 'w') as f:
+        json.dump(combined_data, f, indent=4)
     print(f"Combined annotations saved to {output_file}")
 
-if __name__ == "__main__":
-    combine_json_files(PREPROCESSED_DATA_DIR, OUTPUT_FILE)
+# Execute combining JSON files
+combine_json_files(PREPROCESSED_DATA_DIR, OUTPUT_FILE)
