@@ -93,7 +93,7 @@ def main():
     optimizer = optim.Adam(model.parameters(), lr=1e-4)
 
     # Training Loop
-    num_epochs = 10
+    num_epochs = 3
     for epoch in range(num_epochs):
         model.train()
         running_loss = 0.0
