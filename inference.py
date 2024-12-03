@@ -1,48 +1,70 @@
 import torch
-import numpy as np
-import json
-import os
-from model import ImageCaptionModel  # Assuming the model class is defined as ImageCaptionModel
+import torchvision.transforms as transforms
+from torchvision.models import resnet18
+from coco_loader import CocoDataset
 from torch.utils.data import DataLoader
-from dataset import ImageCaptionDataset  # Assuming you have a Dataset class for loading data
+import os
+from PIL import Image
 
-# Path to pre-trained model
-model_path = 'saved_models/model_epoch_10.pth'
-# Directory for new data for inference
-inference_data_dir = 'inference_data/'
+# Set paths
+MODEL_PATH = './saved_models/coco_resnet18.pth'
+COCO_DATASET_DIR = './preprocessed_data/'  # Adjust if needed
 
-# Hyperparameters (use the same ones used for training)
-batch_size = 64
-embedding_dim = 256
+# Device configuration
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Load the trained model
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-model = ImageCaptionModel(embedding_dim)
-model.load_state_dict(torch.load(model_path, map_location=device))
-model.to(device)
-model.eval()
+def load_model(model_path):
+    model = resnet18(num_classes=80)  # Adjust the number of classes if needed
+    model.load_state_dict(torch.load(model_path, map_location=device))
+    model.to(device)
+    model.eval()
+    return model
 
-# Prepare the DataLoader for the inference data
-inference_dataset = ImageCaptionDataset(inference_data_dir)
-inference_loader = DataLoader(inference_dataset, batch_size=batch_size, shuffle=False)
+# Preprocessing pipeline for images
+transform = transforms.Compose([
+    transforms.Resize((224, 224)),
+    transforms.ToTensor(),
+    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+])
 
-# Inference function
-def infer(model, data_loader):
-    predictions = []
+# Perform inference
+def inference(model, image_path):
+    image = Image.open(image_path).convert('RGB')  # Ensure 3-channel input
+    image = transform(image).unsqueeze(0).to(device)
     with torch.no_grad():
-        for images, captions in data_loader:
-            images = images.to(device)
+        outputs = model(image)
+        probabilities = torch.nn.functional.softmax(outputs[0], dim=0)
+        predicted_class = torch.argmax(probabilities).item()
+    return predicted_class, probabilities[predicted_class].item()
+
+# Run inference on COCO dataset
+def run_inference_on_dataset(dataset_dir, model):
+    dataset = CocoDataset(
+        annotation_file=os.path.join(dataset_dir, 'annotations.json'),
+        image_dir=os.path.join(dataset_dir, 'images'),
+        transform=transform
+    )
+    data_loader = DataLoader(dataset, batch_size=1, shuffle=False)
+    
+    for idx, (images, labels) in enumerate(data_loader):
+        images = images.to(device)
+        with torch.no_grad():
             outputs = model(images)
-            # Here we assume outputs are image feature vectors, you can add decoding for captions if needed
-            predictions.append(outputs)
-    return predictions
+            probabilities = torch.nn.functional.softmax(outputs[0], dim=0)
+            predicted_class = torch.argmax(probabilities).item()
+            confidence = probabilities[predicted_class].item()
 
-# Run inference
-predictions = infer(model, inference_loader)
-print("Inference completed. Number of predictions:", len(predictions))
+        print(f"Image {idx+1}: Predicted Class: {predicted_class}, Confidence: {confidence:.4f}")
 
-# Save predictions for further analysis
-with open('predictions.json', 'w') as f:
-    json.dump(predictions, f)
+# Main script
+if __name__ == '__main__':
+    model = load_model(MODEL_PATH)
 
-print("Predictions saved in predictions.json.")
+    # Option 1: Single image inference
+    # image_path = './preprocessed_data/images/sample.jpg'
+    # predicted_class, confidence = inference(model, image_path)
+    # print(f"Predicted Class: {predicted_class}, Confidence: {confidence:.4f}")
+
+    # Option 2: Inference on the full dataset
+    run_inference_on_dataset(COCO_DATASET_DIR, model)
