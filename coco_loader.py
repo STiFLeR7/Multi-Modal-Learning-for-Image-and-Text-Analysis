@@ -2,7 +2,7 @@ import json
 import os
 from torch.utils.data import Dataset
 from PIL import Image
-import torch
+from torchvision import transforms
 
 class CocoDataset(Dataset):
     def __init__(self, annotation_file, root_dir, transform=None):
@@ -10,50 +10,45 @@ class CocoDataset(Dataset):
         self.root_dir = root_dir
         self.transform = transform
 
-        # Load annotations from the JSON file
-        with open(self.annotation_file, 'r') as f:
-            self.annotations = json.load(f)
-
-        # Prepare lists for images, annotations, and categories
+        # Load the annotations JSON file
+        with open(annotation_file, 'r') as file:
+            self.annotations = json.load(file)
+        
+        # Validate structure
+        if not isinstance(self.annotations, dict):
+            raise ValueError(f"Expected dictionary in {annotation_file}, but found {type(self.annotations)}")
+        
         self.images = self.annotations.get('images', [])
-        self.annotations_list = self.annotations.get('annotations', [])
-        self.categories = self.annotations.get('categories', [])
+        self.annotations_data = self.annotations.get('annotations', [])
+        
+        if not self.images or not self.annotations_data:
+            print(f"Warning: Missing 'images' or 'annotations' keys in {annotation_file}")
 
-        # Create a mapping for category id to category name
-        self.category_map = {category['id']: category['name'] for category in self.categories}
-
-        # Filter out invalid annotations
-        self.valid_annotations = self._filter_valid_annotations()
-
-    def _filter_valid_annotations(self):
-        valid_annotations = []
-        for ann in self.annotations_list:
-            if 'image_id' in ann:
-                image_id = ann['image_id']
-                image_info = next((img for img in self.images if img['id'] == image_id), None)
-                if image_info:
-                    valid_annotations.append(ann)
-        return valid_annotations
+        print(f"Loaded {len(self.images)} images and {len(self.annotations_data)} annotations.")
 
     def __len__(self):
-        return len(self.valid_annotations)
+        return len(self.images)
 
     def __getitem__(self, idx):
-        ann = self.valid_annotations[idx]
+        # Get the image file name and load the image
+        image_info = self.images[idx]
+        image_id = image_info.get('id')  # Get the image_id
+        image_path = os.path.join(self.root_dir, image_info.get('file_name', ''))
+        
+        if not os.path.exists(image_path):
+            print(f"Error: Image file {image_path} not found!")
+            return None, None  # Return None if the image is missing
 
-        image_id = ann['image_id']
-        image_info = next(img for img in self.images if img['id'] == image_id)
+        image = Image.open(image_path).convert('RGB')
 
-        # Load the image file
-        img_path = os.path.join(self.root_dir, image_info['file_name'])
-        image = Image.open(img_path).convert('RGB')
+        # Retrieve annotations for the image
+        annotations = [ann for ann in self.annotations_data if ann.get('image_id') == image_id]
+        if not annotations:
+            print(f"Warning: No annotations found for image_id {image_id}")
 
-        # Get the category id and its name
-        category_id = ann['category_id']
-        category_name = self.category_map.get(category_id, 'Unknown')
+        captions = [ann['caption'] for ann in annotations if 'caption' in ann]
 
-        # Apply transformation if specified
         if self.transform:
             image = self.transform(image)
 
-        return image, category_name  # Return image and category name (or id depending on your needs)
+        return image, captions
