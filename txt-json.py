@@ -18,6 +18,11 @@ class CustomCOCODataset(Dataset):
         self.transform = transform
         self.image_batches = self._load_image_batches()
 
+        # Debugging: Print the number of batches and their shapes
+        print(f"Loaded {len(self.image_batches)} batches")
+        for i, batch in enumerate(self.image_batches):
+            print(f"Batch {i} shape: {batch.shape}")
+
     def load_annotations(self, annotations_file):
         # Load and return the annotations from the JSON file
         with open(annotations_file) as f:
@@ -38,26 +43,44 @@ class CustomCOCODataset(Dataset):
         return len(self.annotations['images'])
 
     def __getitem__(self, idx):
-        # Get the image and label based on the idx
-        image_id = self.annotations['images'][idx]['id']
-        image_batch_idx = idx // 1000  # Divide by batch size to get the batch index
-        image_id_within_batch = idx % 1000  # Get the index within the batch
-        
-        # Ensure that the batch exists and has enough images
-        image_batch = self.image_batches[image_batch_idx]
-        if image_batch.shape[0] <= image_id_within_batch:
-            raise IndexError(f"Index {image_id_within_batch} is out of bounds for batch {image_batch_idx}. Batch size: {image_batch.shape[0]}")
+        # Debugging: Ensure the index is within bounds
+        try:
+            image_id = self.annotations['images'][idx]['id']
+            image_batch_idx = idx // 1000  # Divide by batch size to get the batch index
+            image_id_within_batch = idx % 1000  # Get the index within the batch
 
-        image = image_batch[image_id_within_batch]
-        image = Image.fromarray(image)
+            # Ensure that the batch exists and has enough images
+            image_batch = self.image_batches[image_batch_idx]
+            print(f"Accessing batch {image_batch_idx}, image {image_id_within_batch}")
+            if image_batch.shape[0] <= image_id_within_batch:
+                raise IndexError(f"Index {image_id_within_batch} is out of bounds for batch {image_batch_idx}. Batch size: {image_batch.shape[0]}")
 
-        if self.transform:
-            image = self.transform(image)
+            # Calculate number of images in the batch
+            num_pixels_per_image = 224 * 224 * 3  # For 224x224 RGB images
+            num_images = image_batch.shape[0] // num_pixels_per_image
 
-        # Get the label
-        label = self.annotations['annotations'][idx]['category_id']
+            if image_batch.shape[0] % num_pixels_per_image != 0:
+                raise ValueError(f"Cannot reshape array of size {image_batch.shape[0]} into image batches of size {num_pixels_per_image}.")
 
-        return image, label
+            # Reshape the batch data into (num_images, 224, 224, 3)
+            image_batch = image_batch.reshape(num_images, 224, 224, 3)
+            image = image_batch[image_id_within_batch]
+
+            image = Image.fromarray(image.astype(np.uint8))  # Convert to uint8 for PIL
+
+            if self.transform:
+                image = self.transform(image)
+
+            # Get the label
+            label = self.annotations['annotations'][idx]['category_id']
+
+            return image, label
+        except IndexError as e:
+            print(f"IndexError at idx {idx}: {e}")
+            raise e
+        except ValueError as e:
+            print(f"ValueError at idx {idx}: {e}")
+            raise e
 
 
 # Load the pre-trained ResNet18 model
