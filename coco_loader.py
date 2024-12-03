@@ -1,57 +1,59 @@
-import os
 import json
-import torch
-from torch.utils.data import Dataset, DataLoader  # Import DataLoader here
+import os
+from torch.utils.data import Dataset
 from PIL import Image
-from collections import defaultdict
+import torch
 
 class CocoDataset(Dataset):
-    def __init__(self, root_dir, annotation_file, transform=None):
-        self.root_dir = root_dir
+    def __init__(self, annotation_file, root_dir, transform=None):
         self.annotation_file = annotation_file
+        self.root_dir = root_dir
         self.transform = transform
-        
-        # Load the annotations from the correct file
-        with open(annotation_file, 'r') as f:
+
+        # Load annotations from the JSON file
+        with open(self.annotation_file, 'r') as f:
             self.annotations = json.load(f)
-        
-        # Create a mapping of image_id to captions
-        self.image_id_to_caption = defaultdict(list)
-        for ann in self.annotations['annotations']:
-            image_id = ann['image_id']
-            caption = ann['caption']
-            self.image_id_to_caption[image_id].append(caption)
-        
-        self.image_ids = list(self.image_id_to_caption.keys())
-    
+
+        # Prepare lists for images, annotations, and categories
+        self.images = self.annotations.get('images', [])
+        self.annotations_list = self.annotations.get('annotations', [])
+        self.categories = self.annotations.get('categories', [])
+
+        # Create a mapping for category id to category name
+        self.category_map = {category['id']: category['name'] for category in self.categories}
+
+        # Filter out invalid annotations
+        self.valid_annotations = self._filter_valid_annotations()
+
+    def _filter_valid_annotations(self):
+        valid_annotations = []
+        for ann in self.annotations_list:
+            if 'image_id' in ann:
+                image_id = ann['image_id']
+                image_info = next((img for img in self.images if img['id'] == image_id), None)
+                if image_info:
+                    valid_annotations.append(ann)
+        return valid_annotations
+
     def __len__(self):
-        return len(self.image_ids)
-    
+        return len(self.valid_annotations)
+
     def __getitem__(self, idx):
-        # Get the image id
-        image_id = self.image_ids[idx]
-        
-        # Get the image file path
-        img_path = os.path.join(self.root_dir, f'{str(image_id).zfill(12)}.jpg')
-        image = Image.open(img_path).convert("RGB")
-        
-        # Get the caption(s) for this image
-        captions = self.image_id_to_caption[image_id]
-        
-        # Apply transformation if provided
+        ann = self.valid_annotations[idx]
+
+        image_id = ann['image_id']
+        image_info = next(img for img in self.images if img['id'] == image_id)
+
+        # Load the image file
+        img_path = os.path.join(self.root_dir, image_info['file_name'])
+        image = Image.open(img_path).convert('RGB')
+
+        # Get the category id and its name
+        category_id = ann['category_id']
+        category_name = self.category_map.get(category_id, 'Unknown')
+
+        # Apply transformation if specified
         if self.transform:
             image = self.transform(image)
-        
-        return image, captions
 
-# Function to load the dataloaders
-def get_coco_dataloader(batch_size, transform, root_dir, annotation_file, missing_caption='No caption available'):
-    coco_dataset = CocoDataset(root_dir, annotation_file, transform)
-    train_size = int(0.8 * len(coco_dataset))
-    val_size = len(coco_dataset) - train_size
-    train_dataset, val_dataset = torch.utils.data.random_split(coco_dataset, [train_size, val_size])
-    
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=4)
-    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=4)
-    
-    return train_loader, val_loader, {}
+        return image, category_name  # Return image and category name (or id depending on your needs)
