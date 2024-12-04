@@ -75,7 +75,7 @@ def load_model(model_path):
 
 # Function to run inference and save results
 def run_inference_on_dataset(dataset_dir, model):
-    dataset = CustomCOCODataset(dataset_dir, './preprocessed_data/annotations.json', transform=transform)  # Provide your annotations file
+    dataset = CustomCOCODataset(dataset_dir, './preprocessed_data/fixed_annotations.json', transform=transform)  # Provide your annotations file
     data_loader = torch.utils.data.DataLoader(dataset, batch_size=32, shuffle=False, num_workers=0)  # Disable multiprocessing
     
     # Create a directory to save the results
