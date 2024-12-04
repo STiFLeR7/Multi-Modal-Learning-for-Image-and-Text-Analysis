@@ -1,82 +1,76 @@
-# Multi-Modal Learning for Image and Text Analysis
 
-## Overview
+# Multi-Modal Analysis for Image and Text Analysis
 
-This repository demonstrates a **Multi-Modal Learning** approach for **Image and Text Analysis** using **PyTorch**. The solution integrates **Computer Vision (CV)** and **Natural Language Processing (NLP)** to analyze the **COCO dataset**, combining visual and textual features to make accurate predictions. The model is based on **ResNet18**, fine-tuned for image classification tasks.
+## Project Overview
 
----
+This repository explores the integration of image and text data through multi-modal learning techniques. The objective is to provide a robust framework for researchers and developers to build upon, enhancing applications in areas such as sentiment analysis, content moderation, and more.
 
-## Table of Contents
 
-1. [Install Dependencies](#install-dependencies)
-2. [Usage](#usage)
-3. [Directory Structure](#directory-structure)
-4. [Dependencies](#dependencies)
-5. [Training the Model](#training-the-model)
-6. [Inference and Predictions](#inference-and-predictions)
-7. [Results and Evaluation](#results-and-evaluation)
-8. [License](#license)
+## Table-of-Contents
 
----
+- [Project Overview](#project-overview)
+- [Setup & Usage](#setup--usage)
+- [Example Use Cases](#example-use-cases)
+- [Contributing to the Project](#contributing-to-the-project)
+- [Acknowledgments & References](#acknowledgments--references)
 
-## Install Dependencies
 
-To get started with the project, first clone the repository to your local machine:
+## Setup and Usage
 
+To get started with this project, follow these steps:
+
+1. **Clone the Repository**
+
+   ```bash
+   git clone https://github.com/STiFLeR7/Multi-Modal-Learning-for-Image-and-Text-Analysis.git
+
+    cd Multi-Modal-Learning-for-Image-and-Text-Analysis
+
+
+ 2. **Install required dependencies**
+ 
 ```bash
-git clone https://github.com/STiFLeR7/Multi-Modal-Learning-for-Image-and-Text-Analysis.git
-cd Multi-Modal-Learning-for-Image-and-Text-Analysis
+    pip install -r requirements.txt
+```
 
-pip install -r requirements.txt
+3. **Train and Evaluate**
+```bash
+python train.py
 
-python model.py
+python evaluate.py
+```
+## Example Use Cases
+This framework supports various applications, including:
 
-python inference_save.py
+Image-Text Matching: Aligning images with corresponding textual descriptions.
+Visual Question Answering (VQA): Answering questions based on visual content.
+Image Captioning: Generating textual descriptions for images.
+Sentiment Analysis with Visual Context: Analyzing sentiment in text with accompanying images.
+For detailed examples and implementation specifics, refer to the
+```bash model_architecture.py and dataset.py .```
 
-python visualize.py
-
-Multi-Modal-Learning-for-Image-and-Text-Analysis/
-│
-├── annotations_fixed.json            # Corrected annotations for the dataset
-├── coco_resnet18.pth                # Trained model weights
-├── inference_save.py                # Script for inference and saving predictions
-├── model.py                         # Model training script
-├── predictions.json                 # Predictions after running inference
-├── preprocessed_data/               # Folder with preprocessed image batches
-│   ├── images_batch_0.npy
-│   ├── images_batch_1.npy
-│   └── annotations.json
-├── requirements.txt                 # Dependencies file
-├── src/                             # Main code directory
-│   ├── coco_loader.py               # Dataset loader for COCO data
-│   ├── txt-json.py                  # Script for combining annotations from batches
-│   └── visualize.py                 # Visualization script for results
-└── README.md                        # Project documentation
-
-pip install -r requirements.txt
-
-python model.py
-
-python inference_save.py
-
-[
-  {
-    "image_id": 1,
-    "predicted_class": 4,
-    "confidence": 0.95
-  },
-  {
-    "image_id": 2,
-    "predicted_class": 12,
-    "confidence": 0.87
-  }
-]
+## Contributing to the Project
+We welcome contributions to enhance this project. 
 
 
----
+To contribute:
 
-### Steps to Proceed:
-1. Copy and paste this content into a new file called `README.md`.
-2. Commit and push it to your GitHub repository.
+Fork the Repository.
 
-This `README.md` contains all necessary sections, including project setup, usage instructions, dependencies, and directory structure. Let me know if you need any further modifications!
+Create a New Branch.
+
+Implement Your Changes.
+
+Commit and Push Your Changes.
+
+Submit a Pull Request.
+
+Please ensure your code adheres to the existing coding standards and includes appropriate tests.
+
+
+## Acknowledgments & References
+This project builds upon existing research and frameworks in multi-modal learning. Notable references include:
+
+**CLIP (Contrastive Language-Image Pre-training)**: A model that learns visual concepts from natural language descriptions. 
+
+**ERNIE-ViL 2.0**: A framework for image-text pre-training using multi-view contrastive learning. 
