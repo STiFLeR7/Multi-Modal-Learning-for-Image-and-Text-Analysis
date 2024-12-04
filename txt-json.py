@@ -99,7 +99,7 @@ def run_inference_on_dataset(dataset_dir, model):
     # Assuming model is already loaded and ready for inference
     transform = None  # Add any transformations if needed
     dataset = CustomCOCODataset(
-        root_dir=dataset_dir, annotations_file="./preprocessed_data/annotations.json", transform=transform
+        root_dir=dataset_dir, annotations_file="./preprocessed_data/fixed_annotations.json", transform=transform
     )
     data_loader = DataLoader(dataset, batch_size=64, shuffle=False)
 
