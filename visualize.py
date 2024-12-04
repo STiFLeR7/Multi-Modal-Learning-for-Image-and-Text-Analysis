@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from PIL import Image
 
 # Paths
-OUTPUT_FILE = './predictions.json'  # Path to your predictions file
+OUTPUT_FILE = 'D:\Multi-Modal-Learning-for-Image-and-Text-Analysis\preprocessed_data\predictions.json'  # Path to your predictions file
 COCO_DATASET_DIR = './preprocessed_data/'  # Adjust if needed
 
 # Load predictions from JSON file
