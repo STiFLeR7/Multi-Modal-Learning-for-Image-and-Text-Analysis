@@ -4,3 +4,9 @@ tensorflow
 transformers
 scikit-learn
 Pillow
+numpy
+json
+os
+requests
+tqdm
+PIL
