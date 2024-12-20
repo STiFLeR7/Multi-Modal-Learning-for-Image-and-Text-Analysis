@@ -1,10 +1,14 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from torchvision import transforms
 from torch.utils.data import DataLoader
 from dataset_loader import Flickr8kDataset
 from model_architecture import CustomModel
 from tqdm import tqdm
+
+# Debug: Check if `int` is callable
+print("int is callable:", callable(int))
 
 # Configuration
 class Config:
@@ -18,9 +22,14 @@ class Config:
     model_save_path = "custom_model.pth"
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+# Define image transformations
+image_transforms = transforms.Compose([
+    transforms.Resize((224, 224)),
+    transforms.ToTensor(),
+])
 def train():
     # Load dataset
-    dataset = Flickr8kDataset(Config.data_dir, Config.text_file, Config.vocab_size)
+    dataset = Flickr8kDataset(Config.data_dir, Config.text_file, Config.vocab_size, transform=image_transforms)
     data_loader = DataLoader(dataset, batch_size=Config.batch_size, shuffle=True)
     
     # Initialize model, loss, optimizer
@@ -33,6 +42,11 @@ def train():
     for epoch in range(Config.num_epochs):
         epoch_loss = 0
         for images, texts, targets in tqdm(data_loader, desc=f"Epoch {epoch+1}/{Config.num_epochs}"):
+            # Debug: Ensure `int` is callable
+            if callable(int) == False:
+                raise RuntimeError("Built-in 'int' has been overwritten. Check your code for assignments like 'int = <value>'")
+
+            # Move tensors to device
             images, texts, targets = images.to(Config.device), texts.to(Config.device), targets.to(Config.device)
             
             # Forward pass
