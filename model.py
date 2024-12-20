@@ -1,136 +1,68 @@
 import torch
 import torch.nn as nn
-import torch.optim as optim
-import torchvision
-import torchvision.transforms as transforms
-from torch.utils.data import DataLoader
-from torchvision import models
-from torchvision.models import ResNet18_Weights  # Import ResNet18 weights enum
-from pycocotools.coco import COCO
-import os
-import numpy as np
-from tqdm import tqdm
-from PIL import Image
+import torchvision.models as models
 
-# Set device to GPU if available
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+class CustomImageCaptioningModel(nn.Module):
+    def __init__(self, embedding_dim, hidden_dim, vocab_size, num_layers):
+        super(CustomImageCaptioningModel, self).__init__()
 
-# Data Transformations for Image Preprocessing
-transform = transforms.Compose([
-    transforms.Resize((224, 224)),
-    transforms.ToTensor(),
-    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-])
+        # Pretrained CNN as feature extractor (ResNet18 for simplicity)
+        self.cnn = models.resnet18(pretrained=True)
+        self.cnn.fc = nn.Linear(self.cnn.fc.in_features, embedding_dim)
 
-# COCO Dataset Path (adjust to your dataset path)
-data_dir = "D:/COCO-DATASET/coco2017"
-train_annotations = os.path.join(data_dir, 'annotations/instances_train2017.json')
-train_images_dir = os.path.join(data_dir, 'train2017')
+        # Recurrent neural network for caption generation
+        self.rnn = nn.LSTM(
+            input_size=embedding_dim,
+            hidden_size=hidden_dim,
+            num_layers=num_layers,
+            batch_first=True
+        )
 
-# Initialize COCO API for annotations
-coco = COCO(train_annotations)
+        # Fully connected layer to map RNN outputs to vocabulary size
+        self.fc = nn.Linear(hidden_dim, vocab_size)
 
-# Get category IDs
-category_ids = coco.getCatIds()
-categories = coco.loadCats(category_ids)
-category_names = [category['name'] for category in categories]
+    def forward(self, images, captions):
+        """
+        Args:
+            images: Batch of images (tensor of shape [batch_size, 3, 224, 224]).
+            captions: Padded sequence of captions (tensor of shape [batch_size, max_seq_len]).
 
-# Create a dictionary mapping category name to an ID
-category_to_id = {category['name']: category['id'] for category in categories}
+        Returns:
+            outputs: Predicted logits for each word in the captions.
+        """
+        # Extract image features
+        img_features = self.cnn(images)  # Shape: [batch_size, embedding_dim]
 
-# Dataset Class for COCO
-class CocoDataset(torch.utils.data.Dataset):
-    def __init__(self, coco, transform=None, images_dir=None, num_classes=80):
-        self.coco = coco
-        self.transform = transform
-        self.images_dir = images_dir
-        self.num_classes = num_classes
-        self.image_ids = coco.getImgIds()
+        # Prepare inputs for RNN
+        img_features = img_features.unsqueeze(1)  # Add sequence dimension: [batch_size, 1, embedding_dim]
+        rnn_inputs = torch.cat((img_features, captions[:, :-1]), dim=1)  # Shape: [batch_size, seq_len, embedding_dim]
 
-    def __len__(self):
-        return len(self.image_ids)
+        # Generate captions with RNN
+        rnn_outputs, _ = self.rnn(rnn_inputs)
 
-    def __getitem__(self, idx):
-        # Get image and annotations
-        img_id = self.image_ids[idx]
-        img_info = self.coco.loadImgs(img_id)[0]
-        img_path = os.path.join(self.images_dir, img_info['file_name'])
+        # Map RNN outputs to vocabulary space
+        outputs = self.fc(rnn_outputs)  # Shape: [batch_size, seq_len, vocab_size]
 
-        # Load image
-        image = Image.open(img_path).convert("RGB")
+        return outputs
 
-        # Load annotations for this image
-        ann_ids = self.coco.getAnnIds(imgIds=img_id)
-        annotations = self.coco.loadAnns(ann_ids)
+if __name__ == "__main__":
+    # Hyperparameters
+    EMBEDDING_DIM = 256
+    HIDDEN_DIM = 512
+    VOCAB_SIZE = 10000  # Example vocabulary size
+    NUM_LAYERS = 2
 
-        # Get the category IDs from annotations (multi-label)
-        labels = [ann['category_id'] for ann in annotations]
+    # Initialize the model
+    model = CustomImageCaptioningModel(
+        embedding_dim=EMBEDDING_DIM,
+        hidden_dim=HIDDEN_DIM,
+        vocab_size=VOCAB_SIZE,
+        num_layers=NUM_LAYERS
+    )
 
-        # Create a one-hot encoded label vector
-        one_hot_labels = torch.zeros(self.num_classes)
-        for label in labels:
-            if label - 1 < self.num_classes:  # Ensure the label is within bounds
-                one_hot_labels[label - 1] = 1  # Subtract 1 to match the 0-based index in PyTorch
+    # Test the model with dummy inputs
+    dummy_images = torch.randn(4, 3, 224, 224)  # Batch of 4 images
+    dummy_captions = torch.randn(4, 10, EMBEDDING_DIM)  # Batch of 4 captions with max length 10
 
-        if self.transform:
-            image = self.transform(image)
-
-        return image, one_hot_labels
-
-
-def main():
-    # Initialize Dataset and DataLoader
-    train_dataset = CocoDataset(coco, transform=transform, images_dir=train_images_dir, num_classes=80)
-    train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True, num_workers=4)
-
-    # Define Model
-    model = models.resnet18(weights=ResNet18_Weights.IMAGENET1K_V1)  # Use the correct weights parameter
-    model.fc = nn.Linear(model.fc.in_features, 80)  # Adjust the output layer for the number of classes
-    model = model.to(device)
-
-    # Loss Function and Optimizer
-    criterion = nn.BCEWithLogitsLoss()  # For multi-label classification
-    optimizer = optim.Adam(model.parameters(), lr=1e-4)
-
-    # Training Loop
-    num_epochs = 3
-    for epoch in range(num_epochs):
-        model.train()
-        running_loss = 0.0
-        correct_preds = 0
-        total_preds = 0
-
-        for images, labels in tqdm(train_loader):
-            images = images.to(device)
-            labels = labels.to(device)
-
-            # Zero gradients
-            optimizer.zero_grad()
-
-            # Forward pass
-            outputs = model(images)
-
-            # Compute loss
-            loss = criterion(outputs, labels)
-
-            # Backward pass and optimize
-            loss.backward()
-            optimizer.step()
-
-            running_loss += loss.item()
-
-            # Calculate accuracy (for multi-label)
-            preds = torch.sigmoid(outputs) > 0.5  # Threshold at 0.5
-            correct_preds += torch.sum(preds == labels).item()
-            total_preds += labels.size(0) * labels.size(1)
-
-        epoch_loss = running_loss / len(train_loader)
-        epoch_acc = correct_preds / total_preds
-
-        print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {epoch_loss:.4f}, Accuracy: {epoch_acc:.4f}")
-
-    # Save the trained model
-    torch.save(model.state_dict(), "coco_resnet18.pth")
-
-if __name__ == '__main__':
-    main()
+    outputs = model(dummy_images, dummy_captions)
+    print("Output shape:", outputs.shape)  # Should be [batch_size, seq_len, vocab_size]
