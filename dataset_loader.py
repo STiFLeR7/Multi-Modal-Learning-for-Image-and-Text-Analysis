@@ -22,6 +22,8 @@ class Flickr8kDataset(Dataset):
         with open(caption_file, 'r') as file:
             for line in file:
                 image_id, caption = line.strip().split('\t')
+                # Remove the '#X' part from the image_id
+                image_id = image_id.split('#')[0]
                 captions.append((image_id, caption))
         return captions
 
