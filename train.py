@@ -1,115 +1,96 @@
 import os
-import json
-import numpy as np
 import torch
-import torch.nn as nn
-import torch.optim as optim
-from torch.utils.data import DataLoader, Dataset
-from sklearn.model_selection import train_test_split
-from torch.cuda.amp import GradScaler, autocast
+from torch.utils.data import Dataset, DataLoader
+from PIL import Image
+import torchvision.transforms as transforms
 
-# Path to preprocessed data
-data_dir = 'preprocessed_data'  # This folder contains both images and captions
+class Vocabulary:
+    def __init__(self):
+        self.word2idx = {"<pad>": 0, "<start>": 1, "<end>": 2, "<unk>": 3}
+        self.idx2word = {0: "<pad>", 1: "<start>", 2: "<end>", 3: "<unk>"}
+        self.idx = 4
 
-# Hyperparameters
-batch_size = 16  # Adjust for RTX 3050
-learning_rate = 1e-4
-epochs = 10
-embedding_dim = 256
+    def add_word(self, word):
+        if word not in self.word2idx:
+            self.word2idx[word] = self.idx
+            self.idx2word[self.idx] = word
+            self.idx += 1
 
-# Device configuration
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
-
-# Dataset class
-class ImageCaptionDataset(Dataset):
-    def __init__(self, data_dir):
-        self.data_dir = data_dir
-        self.files = sorted(os.listdir(data_dir))
-        self.image_files = [f for f in self.files if f.endswith('.npy')]
-        self.caption_files = [f for f in self.files if f.endswith('.json')]
-        assert len(self.image_files) == len(self.caption_files), "Mismatch between images and captions!"
+    def __call__(self, word):
+        return self.word2idx.get(word, self.word2idx["<unk>"])
 
     def __len__(self):
-        return len(self.image_files)
+        return len(self.word2idx)
+
+class Flickr8kDataset(Dataset):
+    def __init__(self, image_dir, caption_file, transform=None):
+        """
+        Args:
+            image_dir (str): Path to the directory with images.
+            caption_file (str): Path to the file with image captions.
+            transform (callable, optional): Optional transform to be applied on images.
+        """
+        self.image_dir = image_dir
+        self.captions = self._load_captions(caption_file)
+        self.vocab = self._build_vocab()
+        self.transform = transform
+
+    def _load_captions(self, caption_file):
+        """Loads captions from the provided file."""
+        captions = []
+        with open(caption_file, 'r') as file:
+            for line in file:
+                image_id, caption = line.strip().split('\t')
+                # Remove the '#X' part from the image_id
+                image_id = image_id.split('#')[0]
+                captions.append((image_id, caption))
+        return captions
+
+    def _build_vocab(self):
+        """Builds a vocabulary from the captions."""
+        vocab = Vocabulary()
+        for _, caption in self.captions:
+            for word in caption.split():
+                vocab.add_word(word)
+        return vocab
+
+    def _caption_to_tensor(self, caption):
+        """Converts a caption string into a tensor of word indices."""
+        tokens = ["<start>"] + caption.split() + ["<end>"]
+        return torch.tensor([self.vocab(token) for token in tokens], dtype=torch.long)
+
+    def __len__(self):
+        return len(self.captions)
 
     def __getitem__(self, idx):
-        # Load the image
-        image_path = os.path.join(self.data_dir, self.image_files[idx])
-        image = np.load(image_path, allow_pickle=True)
-        if len(image.shape) == 3:  # (H, W, C)
-            image = torch.tensor(image, dtype=torch.float32).permute(2, 0, 1)  # Convert to (C, H, W)
-        elif len(image.shape) == 4:  # If it's already batched, take the first image
-            image = torch.tensor(image[0], dtype=torch.float32).permute(2, 0, 1)
-        else:
-            raise ValueError(f"Unexpected image shape: {image.shape}")
+        image_id, caption = self.captions[idx]
+        image_path = os.path.join(self.image_dir, image_id)
+        image = Image.open(image_path).convert("RGB")
 
-        # Load the caption
-        caption_path = os.path.join(self.data_dir, self.caption_files[idx])
-        with open(caption_path, 'r') as f:
-            caption_data = json.load(f)
-        caption = caption_data[0] if caption_data else ""
+        if self.transform:
+            image = self.transform(image)
 
-        return image.to(device), caption
+        caption_tensor = self._caption_to_tensor(caption)
 
+        return image, caption_tensor
 
-# Model class
-class ImageCaptionModel(nn.Module):
-    def __init__(self, embedding_dim):
-        super(ImageCaptionModel, self).__init__()
-        self.conv1 = nn.Conv2d(3, 64, kernel_size=3, padding=1)
-        self.pool = nn.MaxPool2d(2, 2)
-        self.fc1 = nn.Linear(64 * 112 * 112, embedding_dim)
-        self.fc2 = nn.Linear(embedding_dim, 256)
+# Define transforms for images
+transform = transforms.Compose([
+    transforms.Resize((224, 224)),  # Resize images to 224x224
+    transforms.ToTensor(),
+    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+])
 
-    def forward(self, x):
-        x = self.pool(torch.relu(self.conv1(x)))
-        x = x.view(x.size(0), -1)
-        x = torch.relu(self.fc1(x))
-        x = self.fc2(x)
-        return x
-
-# Data loaders
-def load_data():
-    dataset = ImageCaptionDataset(data_dir)
-    train_data, val_data = train_test_split(dataset, test_size=0.2, random_state=42)
-    train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
-    val_loader = DataLoader(val_data, batch_size=batch_size, shuffle=False)
-    return train_loader, val_loader
-
-# Training function
-def train_model():
-    train_loader, val_loader = load_data()
-    model = ImageCaptionModel(embedding_dim).to(device)
-    criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=learning_rate)
-    scaler = GradScaler()
-
-    for epoch in range(epochs):
-        model.train()
-        running_loss = 0.0
-        for batch_idx, (images, captions) in enumerate(train_loader):
-            optimizer.zero_grad()
-
-            with autocast():
-                outputs = model(images)
-                dummy_target = torch.zeros(outputs.size(0), dtype=torch.long, device=device)
-                loss = criterion(outputs, dummy_target)
-
-            scaler.scale(loss).backward()
-            scaler.step(optimizer)
-            scaler.update()
-
-            running_loss += loss.item()
-            if batch_idx % 10 == 0:
-                print(f"Epoch {epoch+1}/{epochs}, Batch {batch_idx}/{len(train_loader)}, Loss: {loss.item():.4f}")
-
-        print(f"Epoch {epoch+1}/{epochs}, Average Loss: {running_loss / len(train_loader):.4f}")
-
-        # Save checkpoint
-        checkpoint_dir = "saved_models"
-        os.makedirs(checkpoint_dir, exist_ok=True)
-        torch.save(model.state_dict(), os.path.join(checkpoint_dir, f"model_epoch_{epoch+1}.pth"))
-
-# Entry point
+# Initialize dataset and dataloader
 if __name__ == "__main__":
-    train_model()
+    IMAGE_DIR = "D:/Flickr8k-Dataset/Flicker8k_Dataset"
+    CAPTION_FILE = "D:/Flickr8k-Dataset/Flickr8k_text/Flickr8k.token.txt"
+
+    dataset = Flickr8kDataset(IMAGE_DIR, CAPTION_FILE, transform=transform)
+    dataloader = DataLoader(dataset, batch_size=16, shuffle=True)
+
+    # Example: Iterate through the dataloader
+    for images, captions in dataloader:
+        print("Batch of images shape:", images.shape)
+        print("Batch of captions shape:", captions.shape)
+        break
