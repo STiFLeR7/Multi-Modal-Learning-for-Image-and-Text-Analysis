@@ -31,11 +31,24 @@ class Flickr8kDataset(Dataset):
 
     def __getitem__(self, idx):
         image_name, caption = self.data[idx]
+        
+        # Remove any unwanted suffixes (like .1) from the image name
+        if image_name.endswith('.1'):
+            image_name = image_name[:-2]  # Remove the last two characters
+
         image_path = os.path.join(self.image_dir, image_name)
+
+        # Debugging: Print the original image name and the constructed path
+        print(f"Original image name: {image_name}")
+        print(f"Constructed image path: {image_path}")
 
         # Load and transform the image
         try:
             image = Image.open(image_path).convert('RGB')
+        except FileNotFoundError:
+            print(f"Warning: Image file not found: {image_path}. Skipping this entry.")
+            # Return a dummy image and caption if the file is not found
+            return torch.zeros((3, 224, 224)), torch.zeros(20, dtype=torch.long), torch.zeros(self.vocab_size)
         except Exception as e:
             raise RuntimeError(f"Error loading image {image_path}: {e}")
 
@@ -45,7 +58,7 @@ class Flickr8kDataset(Dataset):
             raise TypeError("`self.transform` is not callable. Check its assignment in the dataset initialization.")
 
         # Convert caption to integers (dummy tokenization here)
-        caption_tokens = torch.randint(0, self.vocab_size, (20,))  # Replace with actual tokenization logic
+        caption_tokens = torch.randint(0, self.vocab_size, (20,), dtype=torch.long)  # Ensure LongTensor
         target = torch.zeros(self.vocab_size)  # Dummy target for now
 
         return image, caption_tokens, target
