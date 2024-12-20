@@ -1,62 +1,51 @@
+from PIL import Image
 import os
 import torch
-from torch.utils.data import Dataset, DataLoader
-from PIL import Image
-import torchvision.transforms as transforms
+from torch.utils.data import Dataset
 
 class Flickr8kDataset(Dataset):
-    def __init__(self, image_dir, caption_file, transform=None):
-        """
-        Args:
-            image_dir (str): Path to the directory with images.
-            caption_file (str): Path to the file with image captions.
-            transform (callable, optional): Optional transform to be applied on images.
-        """
+    def __init__(self, image_dir, text_file, vocab_size, transform=None):
         self.image_dir = image_dir
-        self.captions = self._load_captions(caption_file)
+        self.text_file = text_file
+        self.vocab_size = vocab_size
         self.transform = transform
 
-    def _load_captions(self, caption_file):
-        """Loads captions from the provided file."""
-        captions = []
-        with open(caption_file, 'r') as file:
-            for line in file:
-                image_id, caption = line.strip().split('\t')
-                # Remove the '#X' part from the image_id
-                image_id = image_id.split('#')[0]
-                captions.append((image_id, caption))
-        return captions
+        # Load captions and image file names
+        with open(text_file, 'r') as file:
+            lines = file.readlines()
+
+        self.data = []
+        for line in lines:
+            parts = line.strip().split('\t')
+            if len(parts) < 2:
+                continue
+            image_name, caption = parts
+
+            # Remove `#<number>` from image_name
+            image_name = image_name.split('#')[0]
+            
+            self.data.append((image_name, caption))
 
     def __len__(self):
-        return len(self.captions)
+        return len(self.data)
 
     def __getitem__(self, idx):
-        image_id, caption = self.captions[idx]
-        image_path = os.path.join(self.image_dir, image_id)
-        image = Image.open(image_path).convert("RGB")
+        image_name, caption = self.data[idx]
+        image_path = os.path.join(self.image_dir, image_name)
 
-        if self.transform:
+        # Load and transform the image
+        try:
+            image = Image.open(image_path).convert('RGB')
+        except Exception as e:
+            raise RuntimeError(f"Error loading image {image_path}: {e}")
+
+        if callable(self.transform):
             image = self.transform(image)
+        else:
+            raise TypeError("`self.transform` is not callable. Check its assignment in the dataset initialization.")
 
-        return image, caption
+        # Convert caption to integers (dummy tokenization here)
+        caption_tokens = torch.randint(0, self.vocab_size, (20,))  # Replace with actual tokenization logic
+        target = torch.zeros(self.vocab_size)  # Dummy target for now
 
-# Define transforms for images
-transform = transforms.Compose([
-    transforms.Resize((224, 224)),  # Resize images to 224x224
-    transforms.ToTensor(),
-    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-])
-
-# Initialize dataset and dataloader
-if __name__ == "__main__":
-    IMAGE_DIR = "D:/Flickr8k-Dataset/Flicker8k_Dataset"
-    CAPTION_FILE = "D:/Flickr8k-Dataset/Flickr8k_text/Flickr8k.token.txt"
-
-    dataset = Flickr8kDataset(IMAGE_DIR, CAPTION_FILE, transform=transform)
-    dataloader = DataLoader(dataset, batch_size=16, shuffle=True)
-
-    # Example: Iterate through the dataloader
-    for images, captions in dataloader:
-        print("Batch of images shape:", images.shape)
-        print("Batch of captions:", captions)
-        break
+        return image, caption_tokens, target
