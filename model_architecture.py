@@ -2,52 +2,53 @@ import torch
 import torch.nn as nn
 import torchvision.models as models
 
-class ImageCaptioningModel(nn.Module):
-    def __init__(self, embed_size, hidden_size, vocab_size, num_layers=1):
-        super(ImageCaptioningModel, self).__init__()
+class CustomModel(nn.Module):
+    def __init__(self, embedding_dim, vocab_size):
+        super(CustomModel, self).__init__()
+        
+        # Load ResNet18 with updated weights parameter
+        from torchvision.models import ResNet18_Weights
+        self.image_encoder = models.resnet18(weights=ResNet18_Weights.IMAGENET1K_V1)
+        
+        # Modify the fully connected layer
+        num_features = self.image_encoder.fc.in_features
+        self.image_encoder.fc = nn.Linear(num_features, embedding_dim)
+        
+        # Text encoder
+        self.text_encoder = nn.Embedding(vocab_size, embedding_dim)
+        
+        # Fusion layer
+        self.fusion_layer = nn.Linear(embedding_dim * 2, embedding_dim)
 
-        # Pretrained CNN for feature extraction
-        resnet = models.resnet18(pretrained=True)
-        for param in resnet.parameters():
-            param.requires_grad = False
-        self.feature_extractor = nn.Sequential(*list(resnet.children())[:-1])
-        self.fc = nn.Linear(resnet.fc.in_features, embed_size)
-
-        # LSTM for caption generation
-        self.embed = nn.Embedding(vocab_size, embed_size)
-        self.lstm = nn.LSTM(embed_size, hidden_size, num_layers, batch_first=True)
-        self.linear = nn.Linear(hidden_size, vocab_size)
-
-    def forward(self, images, captions):
-        # Extract features from images
-        with torch.no_grad():
-            features = self.feature_extractor(images)
-        features = features.view(features.size(0), -1)
-        features = self.fc(features)
-
-        # Embed captions and concatenate with image features
-        embeddings = self.embed(captions[:, :-1])  # Exclude <end> token during training
-        embeddings = torch.cat((features.unsqueeze(1), embeddings), dim=1)
-
-        # Pass through LSTM and decode to vocabulary
-        hiddens, _ = self.lstm(embeddings)
-        outputs = self.linear(hiddens)
-
-        return outputs
+    def forward(self, image, text):
+        # Encode image
+        image_features = self.image_encoder(image)
+        
+        # Encode text
+        text_features = self.text_encoder(text)  # [batch_size, seq_len, embedding_dim]
+        text_features = text_features.mean(dim=1)  # Reduce seq_len dimension
+        
+        # Concatenate features
+        combined_features = torch.cat((image_features, text_features), dim=1)
+        
+        # Fuse features
+        output = self.fusion_layer(combined_features)
+        
+        return output
 
 if __name__ == "__main__":
     # Example usage
-    BATCH_SIZE = 4
-    EMBED_SIZE = 256
-    HIDDEN_SIZE = 512
-    VOCAB_SIZE = 5000
-    SEQ_LENGTH = 20
-
-    model = ImageCaptioningModel(EMBED_SIZE, HIDDEN_SIZE, VOCAB_SIZE)
-
-    # Dummy data
-    images = torch.randn(BATCH_SIZE, 3, 224, 224)  # Batch of images
-    captions = torch.randint(0, VOCAB_SIZE, (BATCH_SIZE, SEQ_LENGTH))  # Random captions
-
-    outputs = model(images, captions)
-    print("Output shape:", outputs.shape)  # Should be (BATCH_SIZE, SEQ_LENGTH - 1, VOCAB_SIZE)
+    vocab_size = 5000
+    embedding_dim = 20
+    batch_size = 4
+    
+    # Initialize model
+    model = CustomModel(embedding_dim, vocab_size)
+    
+    # Dummy input
+    image_input = torch.randn(batch_size, 3, 224, 224)
+    text_input = torch.randint(0, vocab_size, (batch_size, 20))
+    
+    # Forward pass
+    output = model(image_input, text_input)
+    print("Output shape:", output.shape)
