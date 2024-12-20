@@ -3,6 +3,7 @@ import torch
 from torch.utils.data import Dataset, DataLoader
 from PIL import Image
 import torchvision.transforms as transforms
+from torch.nn.utils.rnn import pad_sequence
 
 class Vocabulary:
     def __init__(self):
@@ -74,6 +75,13 @@ class Flickr8kDataset(Dataset):
 
         return image, caption_tensor
 
+def collate_fn(batch):
+    """Custom collate function to pad captions."""
+    images = torch.stack([item[0] for item in batch])
+    captions = [item[1] for item in batch]
+    captions_padded = pad_sequence(captions, batch_first=True, padding_value=0)  # Pad with <pad> index (0)
+    return images, captions_padded
+
 # Define transforms for images
 transform = transforms.Compose([
     transforms.Resize((224, 224)),  # Resize images to 224x224
@@ -87,7 +95,7 @@ if __name__ == "__main__":
     CAPTION_FILE = "D:/Flickr8k-Dataset/Flickr8k_text/Flickr8k.token.txt"
 
     dataset = Flickr8kDataset(IMAGE_DIR, CAPTION_FILE, transform=transform)
-    dataloader = DataLoader(dataset, batch_size=16, shuffle=True)
+    dataloader = DataLoader(dataset, batch_size=16, shuffle=True, collate_fn=collate_fn)
 
     # Example: Iterate through the dataloader
     for images, captions in dataloader:
