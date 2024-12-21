@@ -1,5 +1,5 @@
-from PIL import Image
 import os
+from PIL import Image
 import torch
 from torch.utils.data import Dataset
 
@@ -10,45 +10,36 @@ class Flickr8kDataset(Dataset):
         self.vocab_size = vocab_size
         self.transform = transform
 
-        # Load captions and image file names
-        with open(text_file, 'r') as file:
-            lines = file.readlines()
-
         self.data = []
-        for line in lines:
-            parts = line.strip().split('\t')
-            if len(parts) < 2:
-                continue
-            image_name, caption = parts
 
-            # Remove `#<number>` from image_name
-            image_name = image_name.split('#')[0]
-            
-            self.data.append((image_name, caption))
+        # Load image names and captions
+        with open(text_file, 'r') as file:
+            for line in file:
+                # If the line contains captions, split by tab
+                if '\t' in line:
+                    image_name, caption = line.strip().split('\t')
+                else:
+                    image_name, caption = line.strip(), "Dummy caption"
+
+                self.data.append((image_name, caption))
+
+        print(f"Dataset loaded: {len(self.data)} samples")
 
     def __len__(self):
         return len(self.data)
 
     def __getitem__(self, idx):
         image_name, caption = self.data[idx]
-        
-        # Remove any unwanted suffixes (like .1) from the image name
-        if image_name.endswith('.1'):
-            image_name = image_name[:-2]  # Remove the last two characters
 
+        # Clean image_name by removing any trailing # and text
+        image_name = image_name.split('#')[0]  # Take only the portion before the '#'
+
+        # Construct the image path
         image_path = os.path.join(self.image_dir, image_name)
-
-        # Debugging: Print the original image name and the constructed path
-        print(f"Original image name: {image_name}")
-        print(f"Constructed image path: {image_path}")
 
         # Load and transform the image
         try:
             image = Image.open(image_path).convert('RGB')
-        except FileNotFoundError:
-            print(f"Warning: Image file not found: {image_path}. Skipping this entry.")
-            # Return a dummy image and caption if the file is not found
-            return torch.zeros((3, 224, 224)), torch.zeros(20, dtype=torch.long), torch.zeros(self.vocab_size)
         except Exception as e:
             raise RuntimeError(f"Error loading image {image_path}: {e}")
 
@@ -57,8 +48,8 @@ class Flickr8kDataset(Dataset):
         else:
             raise TypeError("`self.transform` is not callable. Check its assignment in the dataset initialization.")
 
-        # Convert caption to integers (dummy tokenization here)
-        caption_tokens = torch.randint(0, self.vocab_size, (20,), dtype=torch.long)  # Ensure LongTensor
-        target = torch.zeros(self.vocab_size)  # Dummy target for now
+        # Convert the caption to token IDs (dummy example)
+        caption_tokens = torch.randint(0, self.vocab_size, (20,))  # Dummy tokens
+        target = torch.zeros(self.vocab_size)  # Dummy target
 
         return image, caption_tokens, target
