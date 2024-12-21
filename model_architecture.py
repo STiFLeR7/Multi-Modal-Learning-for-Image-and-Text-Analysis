@@ -17,8 +17,8 @@ class CustomModel(nn.Module):
         # Text encoder
         self.text_encoder = nn.Embedding(vocab_size, embedding_dim)
         
-        # Fusion layer
-        self.fusion_layer = nn.Linear(embedding_dim * 2, embedding_dim)
+        # Fusion layer - Change output size to vocab_size
+        self.fusion_layer = nn.Linear(embedding_dim * 2, vocab_size)  # Change to vocab_size
 
     def forward(self, image, text):
         # Encode image
@@ -51,4 +51,4 @@ if __name__ == "__main__":
     
     # Forward pass
     output = model(image_input, text_input)
-    print("Output shape:", output.shape)
+    print("Output shape:", output.shape)  # Should be [batch_size, vocab_size]
