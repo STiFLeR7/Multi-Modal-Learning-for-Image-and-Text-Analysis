@@ -2,13 +2,12 @@ import os
 import torch
 from torch.utils.data import Dataset
 from PIL import Image
-import random
 
 class FlickrDataset(Dataset):
     def __init__(self, image_dir, caption_file, vocab_size, transform=None):
         self.image_dir = image_dir
         self.vocab_size = vocab_size
-        self.transform = transform
+        self.transform = transform or (lambda x: x)  # Use identity function if no transform is provided
 
         # Load and preprocess captions
         self.data = []
@@ -46,10 +45,8 @@ class FlickrDataset(Dataset):
         except Exception as e:
             raise RuntimeError(f"Error loading image {image_path}: {e}")
 
-        if callable(self.transform):
-            image = self.transform(image)
-        else:
-            raise TypeError("`self.transform` is not callable. Check its assignment in the dataset initialization.")
+        # Apply transform if callable
+        image = self.transform(image)
 
         # Convert the caption to token IDs (dummy example)
         caption_tokens = torch.randint(0, self.vocab_size, (20,))  # Dummy tokens
@@ -59,17 +56,25 @@ class FlickrDataset(Dataset):
 
 if __name__ == "__main__":
     # Test the dataset loader
+    from torchvision import transforms
+
     image_dir = "D:/Flickr8k-Dataset/Flicker8k_Dataset"
     caption_file = "D:/Flickr8k-Dataset/Flickr8k_text/Flickr8k.token.txt"
     vocab_size = 5000
 
-    dataset = FlickrDataset(image_dir, caption_file, vocab_size, transform=None)
+    # Define a transform for testing
+    transform = transforms.Compose([
+        transforms.Resize((224, 224)),
+        transforms.ToTensor(),
+    ])
+
+    dataset = FlickrDataset(image_dir, caption_file, vocab_size, transform=transform)
     print(f"Number of samples in dataset: {len(dataset)}")
 
     # Test a few samples
     for i in range(5):
         try:
             image, caption_tokens, target = dataset[i]
-            print(f"Sample {i}: Image size: {image.size}, Caption tokens: {caption_tokens.shape}")
+            print(f"Sample {i}: Image size: {image.size()}, Caption tokens: {caption_tokens.shape}")
         except Exception as e:
             print(f"Error processing sample {i}: {e}")
