@@ -51,12 +51,12 @@ def train():
             targets = targets.to(Config.device)
 
             # Forward pass
-            outputs = model(images, caption_tokens)  # Ensure model input and output are on the same device
+            outputs = model(images, caption_tokens)  # Shape: [batch_size, seq_len, vocab_size]
 
             # Reshape outputs and targets for loss calculation
-            batch_size, vocab_size = outputs.shape
-            outputs = outputs.view(-1, Config.vocab_size)  # Flatten outputs to [batch_size * seq_len, vocab_size]
-            targets = targets.view(-1)  # Flatten targets to [batch_size * seq_len]
+            batch_size, seq_len, vocab_size = outputs.shape
+            outputs = outputs.view(-1, vocab_size)  # Reshape to [batch_size * seq_len, vocab_size]
+            targets = targets.view(-1)  # Reshape to [batch_size * seq_len]
 
             # Calculate loss
             loss = criterion(outputs, targets)
@@ -76,4 +76,6 @@ def train():
 
 if __name__ == "__main__":
     train()
+
+
 
