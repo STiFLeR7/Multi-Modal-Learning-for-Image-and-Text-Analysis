@@ -1,4 +1,3 @@
-import os
 import torch
 from torch import nn, optim
 from torch.utils.data import DataLoader
@@ -42,16 +41,13 @@ def train():
         running_loss = 0.0
 
         for images, caption_tokens, targets in tqdm(dataloader, desc=f"Epoch {epoch + 1}/{Config.num_epochs}"):
-            if images is None or caption_tokens is None or targets is None:
-                continue  # Skip invalid samples
-
             # Move data to the correct device
             images = images.to(Config.device)
             caption_tokens = caption_tokens.to(Config.device)
             targets = targets.to(Config.device)
 
             # Forward pass
-            outputs = model(images, caption_tokens)  # Shape: [batch_size, seq_len, vocab_size]
+            outputs = model(images, caption_tokens)  # Output shape: [batch_size, seq_len, vocab_size]
 
             # Reshape outputs and targets for loss calculation
             batch_size, seq_len, vocab_size = outputs.shape
@@ -76,6 +72,3 @@ def train():
 
 if __name__ == "__main__":
     train()
-
-
-
