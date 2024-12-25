@@ -2,12 +2,13 @@ import os
 import torch
 from torch.utils.data import Dataset
 from PIL import Image
+import random
 
 class FlickrDataset(Dataset):
     def __init__(self, image_dir, caption_file, vocab_size, transform=None):
         self.image_dir = image_dir
         self.vocab_size = vocab_size
-        self.transform = transform or (lambda x: x)  # Use identity function if no transform is provided
+        self.transform = transform or (lambda x: x)  # Default to identity transform if none provided
 
         # Load and preprocess captions
         self.data = []
@@ -35,24 +36,32 @@ class FlickrDataset(Dataset):
         # Construct the image path
         image_path = os.path.join(self.image_dir, image_name)
 
-        # Debugging: Check the image path
+        # Check if the file exists
         if not os.path.exists(image_path):
-            print(f"Debug: Image file does not exist -> {image_path}")
+            print(f"Warning: File not found -> {image_path}")
+            return None, None, None  # Skip missing files gracefully
 
         # Load and transform the image
         try:
             image = Image.open(image_path).convert('RGB')
         except Exception as e:
-            raise RuntimeError(f"Error loading image {image_path}: {e}")
+            print(f"Error loading image {image_path}: {e}")
+            return None, None, None
 
-        # Apply transform if callable
         image = self.transform(image)
 
-        # Convert the caption to token IDs (dummy example)
-        caption_tokens = torch.randint(0, self.vocab_size, (20,))  # Dummy tokens
-        target = torch.zeros(self.vocab_size)  # Dummy target
+        # Tokenize the caption
+        caption_tokens = self.convert_caption_to_tokens(caption)
+        target = torch.tensor(caption_tokens, dtype=torch.long)  # Ensure target matches seq_len
 
-        return image, caption_tokens, target
+        return image, torch.tensor(caption_tokens, dtype=torch.long), target
+
+    def convert_caption_to_tokens(self, caption):
+        # Example tokenization: Convert each word into a token index
+        tokens = caption.split()[:20]  # Truncate to 20 tokens
+        token_indices = [random.randint(0, self.vocab_size - 1) for _ in tokens]
+        return token_indices + [0] * (20 - len(tokens))  # Pad to seq_len
+
 
 if __name__ == "__main__":
     # Test the dataset loader
@@ -62,7 +71,6 @@ if __name__ == "__main__":
     caption_file = "D:/Flickr8k-Dataset/Flickr8k_text/Flickr8k.token.txt"
     vocab_size = 5000
 
-    # Define a transform for testing
     transform = transforms.Compose([
         transforms.Resize((224, 224)),
         transforms.ToTensor(),
@@ -73,8 +81,6 @@ if __name__ == "__main__":
 
     # Test a few samples
     for i in range(5):
-        try:
-            image, caption_tokens, target = dataset[i]
-            print(f"Sample {i}: Image size: {image.size()}, Caption tokens: {caption_tokens.shape}")
-        except Exception as e:
-            print(f"Error processing sample {i}: {e}")
+        image, caption_tokens, target = dataset[i]
+        if image is not None:
+            print(f"Sample {i}: Image shape: {image.shape}, Caption tokens: {caption_tokens}, Target shape: {target.shape}")
