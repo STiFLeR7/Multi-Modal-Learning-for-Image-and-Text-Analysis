@@ -18,9 +18,15 @@ class FlickrDataset(Dataset):
                 if len(parts) >= 2:
                     image_name = parts[0]
                     caption = parts[1]
-                    self.data.append((image_name, caption))
+                    image_path = os.path.join(image_dir, image_name.split('#')[0].strip())
 
-        print(f"Dataset loaded: {len(self.data)} samples")
+                    # Check if the image file exists
+                    if os.path.exists(image_path):
+                        self.data.append((image_name, caption))
+                    else:
+                        print(f"Warning: Skipping missing file -> {image_path}")
+
+        print(f"Dataset loaded with {len(self.data)} valid samples")
 
     def __len__(self):
         return len(self.data)
@@ -28,31 +34,24 @@ class FlickrDataset(Dataset):
     def __getitem__(self, idx):
         image_name, caption = self.data[idx]
 
-        # Clean image_name: remove everything after '#' and ensure the file ends with '.jpg'
+        # Clean image name
         image_name = image_name.split('#')[0].strip()
         if not image_name.endswith('.jpg'):
-            image_name = f"{image_name.split('.')[0]}.jpg"  # Ensure proper extension
+            image_name = f"{image_name.split('.')[0]}.jpg"
 
-        # Construct the image path
         image_path = os.path.join(self.image_dir, image_name)
-
-        # Check if the file exists
-        if not os.path.exists(image_path):
-            print(f"Warning: File not found -> {image_path}")
-            return None, None, None  # Skip missing files gracefully
 
         # Load and transform the image
         try:
             image = Image.open(image_path).convert('RGB')
         except Exception as e:
-            print(f"Error loading image {image_path}: {e}")
-            return None, None, None
+            raise RuntimeError(f"Error loading image {image_path}: {e}")
 
         image = self.transform(image)
 
         # Tokenize the caption
         caption_tokens = self.convert_caption_to_tokens(caption)
-        target = torch.tensor(caption_tokens, dtype=torch.long)  # Ensure target matches seq_len
+        target = torch.tensor(caption_tokens, dtype=torch.long)
 
         return image, torch.tensor(caption_tokens, dtype=torch.long), target
 
@@ -77,10 +76,9 @@ if __name__ == "__main__":
     ])
 
     dataset = FlickrDataset(image_dir, caption_file, vocab_size, transform=transform)
-    print(f"Number of samples in dataset: {len(dataset)}")
+    print(f"Number of valid samples in dataset: {len(dataset)}")
 
     # Test a few samples
     for i in range(5):
         image, caption_tokens, target = dataset[i]
-        if image is not None:
-            print(f"Sample {i}: Image shape: {image.shape}, Caption tokens: {caption_tokens}, Target shape: {target.shape}")
+        print(f"Sample {i}: Image shape: {image.shape}, Caption tokens: {caption_tokens}, Target shape: {target.shape}")
