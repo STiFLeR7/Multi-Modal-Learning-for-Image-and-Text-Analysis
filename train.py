@@ -8,8 +8,8 @@ from model_architecture import CustomModel
 
 # Configurations
 class Config:
-    image_dir = "D:/Flickr8k-Dataset/Flicker8k_Dataset"
-    caption_file = "D:/Flickr8k-Dataset/Flickr8k_text/Flickr8k.token.txt"
+    image_dir = "D:/Flickr8k-Dataset/Augmented_Flickr8k"
+    caption_file = "D:/Flickr8k-Dataset/Flickr8k_text/Flickr8k_augmented.token.txt"
     vocab_size = 5000
     embedding_dim = 20
     batch_size = 16
