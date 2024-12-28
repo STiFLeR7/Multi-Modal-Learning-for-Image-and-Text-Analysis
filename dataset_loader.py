@@ -9,6 +9,7 @@ class FlickrDataset(Dataset):
         self.vocab_size = vocab_size
         self.transform = transform or (lambda x: x)  # Default to identity transform if none provided
         self.skipped_files_log = "skipped_files.log"
+        self.skipped_files = []
 
         # Load and preprocess captions
         self.data = []
@@ -24,9 +25,14 @@ class FlickrDataset(Dataset):
                     if os.path.exists(image_path):
                         self.data.append((image_name, caption))
                     else:
-                        with open(self.skipped_files_log, "a") as log_file:
-                            log_file.write(f"{image_path}\n")
-                        print(f"Warning: Skipping missing file -> {image_path}")
+                        self.skipped_files.append(image_path)
+
+        # Log skipped files
+        if self.skipped_files:
+            with open(self.skipped_files_log, "w") as log_file:
+                for file in self.skipped_files:
+                    log_file.write(f"{file}\n")
+            print(f"Logged {len(self.skipped_files)} skipped files to {self.skipped_files_log}")
 
         print(f"Dataset loaded with {len(self.data)} valid samples")
 
