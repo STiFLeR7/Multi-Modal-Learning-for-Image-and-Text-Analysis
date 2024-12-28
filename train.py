@@ -6,7 +6,6 @@ from torchvision import transforms
 from tqdm import tqdm
 from dataset_loader import FlickrDataset
 from model_architecture import CustomModel
-from validate import validate  # Assumes validate.py is in the same directory
 
 class Config:
     image_dir = "D:/Flickr8k-Dataset/Augmented_Flickr8k"
@@ -21,6 +20,28 @@ class Config:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     log_interval = 100  # Print progress every 'n' batches
 
+def validate(model, criterion, val_loader):
+    """Validate the model and calculate the average loss."""
+    model.eval()  # Set model to evaluation mode
+    total_loss = 0.0
+
+    with torch.no_grad():  # Disable gradient computation for validation
+        for images, caption_tokens, targets in tqdm(val_loader, desc="Validating"):
+            images = images.to(Config.device)
+            caption_tokens = caption_tokens.to(Config.device)
+            targets = targets.to(Config.device)
+
+            outputs = model(images, caption_tokens)
+            batch_size, seq_len, vocab_size = outputs.shape
+            outputs = outputs.view(-1, vocab_size)
+            targets = targets.view(-1)
+
+            loss = criterion(outputs, targets)
+            total_loss += loss.item()
+
+    avg_loss = total_loss / len(val_loader)
+    return avg_loss
+
 def train():
     # Initialize data transforms and dataset
     transform = transforms.Compose([
@@ -28,7 +49,14 @@ def train():
         transforms.ToTensor(),
     ])
     dataset = FlickrDataset(Config.image_dir, Config.caption_file, Config.vocab_size, transform=transform)
-    dataloader = DataLoader(dataset, batch_size=Config.batch_size, shuffle=True)
+
+    # Split the dataset into training and validation sets
+    train_size = int(0.8 * len(dataset))
+    val_size = len(dataset) - train_size
+    train_dataset, val_dataset = torch.utils.data.random_split(dataset, [train_size, val_size])
+
+    train_loader = DataLoader(train_dataset, batch_size=Config.batch_size, shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=Config.batch_size, shuffle=False)
 
     # Initialize model, loss function, and optimizer
     model = CustomModel(embedding_dim=Config.embedding_dim, vocab_size=Config.vocab_size).to(Config.device)
@@ -44,7 +72,7 @@ def train():
         running_loss = 0.0
 
         print(f"Epoch {epoch + 1}/{Config.num_epochs} started...")
-        for batch_idx, (images, caption_tokens, targets) in enumerate(tqdm(dataloader, desc=f"Epoch {epoch + 1}/{Config.num_epochs}")):
+        for batch_idx, (images, caption_tokens, targets) in enumerate(tqdm(train_loader, desc=f"Epoch {epoch + 1}/{Config.num_epochs}")):
             if images is None or caption_tokens is None or targets is None:
                 print("Skipped batch due to missing data.")
                 continue
@@ -71,10 +99,10 @@ def train():
             # Log progress after every `log_interval` batches
             if (batch_idx + 1) % Config.log_interval == 0:
                 avg_loss = running_loss / (batch_idx + 1)
-                print(f"Batch [{batch_idx + 1}/{len(dataloader)}], Loss: {avg_loss:.4f}")
+                print(f"Batch [{batch_idx + 1}/{len(train_loader)}], Loss: {avg_loss:.4f}")
 
         # Compute epoch loss
-        epoch_loss = running_loss / len(dataloader)
+        epoch_loss = running_loss / len(train_loader)
         print(f"Epoch [{epoch + 1}/{Config.num_epochs}], Training Loss: {epoch_loss:.4f}")
 
         # Save checkpoint
@@ -83,7 +111,7 @@ def train():
         print(f"Model checkpoint saved to {epoch_model_path}")
 
         # Validate the model
-        val_loss = validate(model, criterion)
+        val_loss = validate(model, criterion, val_loader)
         print(f"Validation Loss after Epoch {epoch + 1}: {val_loss:.4f}")
 
         # Update the best model if validation loss improves
