@@ -92,8 +92,16 @@ def train():
             loss = criterion(outputs, targets)
             optimizer.zero_grad()
             loss.backward()
-            optimizer.step()
 
+            # Clip gradients to prevent exploding gradients
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+
+            # Log gradients for debugging
+            for name, param in model.named_parameters():
+                if param.grad is not None:
+                    print(f"Layer: {name}, Grad Norm: {param.grad.norm()}")
+
+            optimizer.step()
             running_loss += loss.item()
 
             # Log progress after every `log_interval` batches
@@ -104,11 +112,6 @@ def train():
         # Compute epoch loss
         epoch_loss = running_loss / len(train_loader)
         print(f"Epoch [{epoch + 1}/{Config.num_epochs}], Training Loss: {epoch_loss:.4f}")
-
-        # Save checkpoint
-        epoch_model_path = Config.model_save_path.format(epoch=epoch + 1)
-        torch.save(model.state_dict(), epoch_model_path)
-        print(f"Model checkpoint saved to {epoch_model_path}")
 
         # Validate the model
         val_loss = validate(model, criterion, val_loader)
@@ -121,6 +124,3 @@ def train():
             print(f"Best model updated and saved to {Config.best_model_path}")
 
     print("Training completed.")
-
-if __name__ == "__main__":
-    train()
