@@ -35,6 +35,7 @@ def create_augmented_dataset():
         original_image_path = os.path.join(Config.original_image_dir, original_image_name.split("#")[0])
 
         if not os.path.exists(original_image_path):
+            print(f"Warning: Missing file -> {original_image_path}")
             continue
 
         original_image = Image.open(original_image_path).convert("RGB")
@@ -42,9 +43,16 @@ def create_augmented_dataset():
 
         for i in range(Config.num_augmentations):
             augmented_image = augment_image(original_image)
-            augmented_image_name = f"{original_image_name.split('.')[0]}_aug{i}.jpg"
+            augmented_image_name = f"{os.path.splitext(original_image_name)[0]}_aug{i}.jpg"
             augmented_image_path = os.path.join(Config.augmented_image_dir, augmented_image_name)
-            augmented_image.save(augmented_image_path)
+
+            try:
+                augmented_image.save(augmented_image_path)
+                print(f"Saved augmented image: {augmented_image_path}")
+            except Exception as e:
+                print(f"Error saving {augmented_image_path}: {e}")
+                continue
+
             augmented_captions.append(f"{augmented_image_name}\t{caption}")
 
     with open(Config.augmented_caption_file, "w") as file:
