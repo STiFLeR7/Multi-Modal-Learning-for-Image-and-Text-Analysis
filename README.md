@@ -64,6 +64,9 @@ The project architecture consists of the following components:
 
     Evaluated using Cross-Entropy Loss and **BLEU Score**.
 ## Dataset
+![Screenshot 2024-12-29 114207](https://github.com/user-attachments/assets/7e9937bc-a11c-4b02-8895-f6d8ce2589a2)
+![Screenshot 2024-12-29 114213](https://github.com/user-attachments/assets/55161015-e704-4f04-bb6f-5ddecf68c4fc)
+![Screenshot 2024-12-29 114229](https://github.com/user-attachments/assets/6141a6da-4825-472b-aff6-d38138463b71)
 
 
 This project uses the **Flickr8k** dataset:
@@ -92,6 +95,8 @@ Validate the Model - ```python validate.py```
 ## Training and Validation
 
 **Training**
+![Screenshot 2024-12-29 114310](https://github.com/user-attachments/assets/d58af04e-36e8-4bb0-921e-31c827ed319e)
+
 
 The training process involves:
 
