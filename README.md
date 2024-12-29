@@ -95,6 +95,7 @@ Validate the Model - ```python validate.py```
 ## Training and Validation
 
 **Training**
+
 ![Screenshot 2024-12-29 114310](https://github.com/user-attachments/assets/d58af04e-36e8-4bb0-921e-31c827ed319e)
 
 
