@@ -117,6 +117,7 @@ Evaluation metrics include:
 Image | Predicted Caption | Ground Truth Caption
 --- | --- | ---
 ![35506150_cbdb630f4f](https://github.com/user-attachments/assets/aa90f945-0ecf-4b7e-a51c-7f9fa1ae97be) | A man sitting on a bench in a park. | A person relaxing on a park bench.
+![57417274_d55d34e93e](https://github.com/user-attachments/assets/ac3c73da-7dc5-4b19-b05c-a376cd920425) | A group of people enjoying snow. | People hiking a snowy mountain.
 
 
 
