@@ -1,76 +1,130 @@
 
-# Multi-Modal Analysis for Image and Text Analysis
+# Multi-Modal Learning for Image and Text Analysis
 
-## Project Overview
+![alt text]("D:\Multi-Modal-Learning-for-Image-and-Text-Analysis\Banner for Multi-Modal Learning for my Github repository_1920x1080p banner style classic minimilisti 29-12-2024 at 11-54-53.jpeg")
+**Overview**
 
-This repository explores the integration of image and text data through multi-modal learning techniques. The objective is to provide a robust framework for researchers and developers to build upon, enhancing applications in areas such as sentiment analysis, content moderation, and more.
+This repository focuses on multi-modal learning, integrating image processing and natural language understanding. The project aims to generate descriptive captions for images using a combination of deep learning techniques for vision-language models.
 
+**Features**
 
-## Table-of-Contents
+End-to-end text-to-image and image-to-text generation.
 
-- [Project Overview](#project-overview)
-- [Setup & Usage](#setup--usage)
-- [Example Use Cases](#example-use-cases)
-- [Contributing to the Project](#contributing-to-the-project)
-- [Acknowledgments & References](#acknowledgments--references)
+Use of ResNet18 for image feature extraction.
 
+A custom Transformer-based model for text generation.
 
-## Setup and Usage
+Extensive data augmentation to improve model generalization.
 
-To get started with this project, follow these steps:
-
-1. **Clone the Repository**
-
-   ```bash
-   git clone https://github.com/STiFLeR7/Multi-Modal-Learning-for-Image-and-Text-Analysis.git
-
-    cd Multi-Modal-Learning-for-Image-and-Text-Analysis
+Evaluation metrics: BLEU Score, Cross-Entropy Loss, and Accuracy.
 
 
- 2. **Install required dependencies**
- 
-```bash
-    pip install -r requirements.txt
-```
+## Table of Contents
 
-3. **Train and Evaluate**
-```bash
-python train.py
+1. Project Architecture
 
-python evaluate.py
-```
-## Example Use Cases
-This framework supports various applications, including:
+2. Dataset
 
-Image-Text Matching: Aligning images with corresponding textual descriptions.
-Visual Question Answering (VQA): Answering questions based on visual content.
-Image Captioning: Generating textual descriptions for images.
-Sentiment Analysis with Visual Context: Analyzing sentiment in text with accompanying images.
-For detailed examples and implementation specifics, refer to the
-```bash model_architecture.py and dataset.py .```
+3. Setup Instructions
 
-## Contributing to the Project
-We welcome contributions to enhance this project. 
+4. Training and Validation
+
+5. Results
+
+6. Future Improvements
+
+7. Contributors
+
+## Project Architecture
+
+The project architecture consists of the following components:
+
+1. **Image Encoder**:
+    
+    Pretrained ResNet18 extracts visual features from images.
+
+    Features are projected into an embedding space of dimension ```embedding_dim```.
+
+2. **Text Encoder**:
+    
+    Embeds the captions into tokenized feature vectors.
+    
+    Custom Embedding Layer maps vocabulary tokens into the same embedding space as the image features.
+
+3. **Fusion Layer**:
+
+    Combines image and text embeddings for feature fusion.
+    
+    Fully connected layers integrate both modalities.
+
+4. **Output Decoder**:
+
+    Generates a sequence of tokens as text captions.
+
+    Evaluated using Cross-Entropy Loss and **BLEU Score**.
+## Dataset
 
 
-To contribute:
+This project uses the **Flickr8k** dataset:
 
-Fork the Repository.
+**Image Directory**: Contains 8,000 images.
+    
+**Caption File**: Each image is annotated with five captions.
+    
+**Augmentation**: Images are augmented with random flips, rotations, and color jittering to increase dataset variability.
+## Setup Instructions
 
-Create a New Branch.
+1. **Clone this Repository**
+```git clone https://github.com/STiFLeR7/Multi-Modal-Learning-for-Image-and-Text-Analysis```
 
-Implement Your Changes.
+```cd Multi-Modal-Learning-for-Image-and-Text-Analysis```
 
-Commit and Push Your Changes.
+2. **Install Dependencies**
+```pip install -r requirements.txt```
 
-Submit a Pull Request.
+3. **Running the Python Files**
+Run Data Augmentation - ```python augmented.py``` 
 
-Please ensure your code adheres to the existing coding standards and includes appropriate tests.
+Train the Model - ```python train.py```
+
+Validate the Model - ```python validate.py```
+## Training and Validation
+
+**Training**
+
+The training process involves:
+
+    1. Cross-Entropy Loss for token predictions.
+    2. Gradient Clipping to prevent exploding gradients.
+    3. Checkpointing to save the best model based on validation loss.
+
+**Validation**
+
+Evaluation metrics include:
+
+    1. Validation Loss: Monitors overfitting.
+    2. BLEU Score: Evaluates sequence-to-sequence quality.
+    3. Accuracy: Measures token-level predictions.
+## Results
 
 
-## Acknowledgments & References
-This project builds upon existing research and frameworks in multi-modal learning. Notable references include:
 
-**CLIP (Contrastive Language-Image Pre-training)**: A model that learns visual concepts from natural language descriptions. 
 
-**ERNIE-ViL 2.0**: A framework for image-text pre-training using multi-view contrastive learning. 
+
+**Metrics**
+
+Training Loss: 4.5278
+
+Validation BLEU Score: 0.6543
+
+Validation Accuracy: 83.45%
+## Future Improvements
+
+    1. Implement Transformer-based decoders for more accurate caption generation.
+
+    2. Experiment with larger datasets like COCO for better generalization.
+    
+    3. Add Beam Search Decoding for generating captions.
+## Contributors
+
+**STiFLeR7** - Lead Developer
