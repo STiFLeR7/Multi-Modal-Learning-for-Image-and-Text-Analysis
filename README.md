@@ -1,7 +1,8 @@
 
 # Multi-Modal Learning for Image and Text Analysis
+![banner](https://github.com/user-attachments/assets/8c8f4571-5922-4282-a342-9b20b92dd1ab)
 
-![Banner]("https://github.com/STiFLeR7/Multi-Modal-Learning-for-Image-and-Text-Analysis/blob/master/banner.jpeg?raw=true")
+
 **Overview**
 
 This repository focuses on multi-modal learning, integrating image processing and natural language understanding. The project aims to generate descriptive captions for images using a combination of deep learning techniques for vision-language models.
