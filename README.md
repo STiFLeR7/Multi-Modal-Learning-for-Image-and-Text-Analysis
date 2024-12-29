@@ -114,6 +114,9 @@ Evaluation metrics include:
     3. Accuracy: Measures token-level predictions.
 ## Results
 
+Image | Predicted Caption | Ground Truth Caption
+--- | --- | ---
+![35506150_cbdb630f4f](https://github.com/user-attachments/assets/aa90f945-0ecf-4b7e-a51c-7f9fa1ae97be) | A man sitting on a bench in a park. | A person relaxing on a park bench.
 
 
 
