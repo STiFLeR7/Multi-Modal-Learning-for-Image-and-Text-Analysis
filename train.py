@@ -6,6 +6,7 @@ from torchvision import transforms
 from tqdm import tqdm
 from dataset_loader import FlickrDataset
 from model_architecture import CustomModel
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 class Config:
     image_dir = "D:/Flickr8k-Dataset/Augmented_Flickr8k"
@@ -63,6 +64,9 @@ def train():
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=Config.learning_rate)
 
+    # Initialize the learning rate scheduler
+    scheduler = ReduceLROnPlateau(optimizer, 'min', patience=2, factor=0.5)
+
     # Variables for tracking the best model
     best_val_loss = float('inf')
 
@@ -96,11 +100,6 @@ def train():
             # Clip gradients to prevent exploding gradients
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
 
-            # Log gradients for debugging
-            for name, param in model.named_parameters():
-                if param.grad is not None:
-                    print(f"Layer: {name}, Grad Norm: {param.grad.norm()}")
-
             optimizer.step()
             running_loss += loss.item()
 
@@ -109,18 +108,22 @@ def train():
                 avg_loss = running_loss / (batch_idx + 1)
                 print(f"Batch [{batch_idx + 1}/{len(train_loader)}], Loss: {avg_loss:.4f}")
 
-        # Compute epoch loss
-        epoch_loss = running_loss / len(train_loader)
-        print(f"Epoch [{epoch + 1}/{Config.num_epochs}], Training Loss: {epoch_loss:.4f}")
-
-        # Validate the model
+        # Compute validation loss after each epoch
         val_loss = validate(model, criterion, val_loader)
         print(f"Validation Loss after Epoch {epoch + 1}: {val_loss:.4f}")
 
-        # Update the best model if validation loss improves
+        # Step the scheduler
+        scheduler.step(val_loss)
+
+        # Early stopping condition
         if val_loss < best_val_loss:
             best_val_loss = val_loss
             torch.save(model.state_dict(), Config.best_model_path)
             print(f"Best model updated and saved to {Config.best_model_path}")
+        else:
+            print("Validation loss did not improve.")
 
-    print("Training completed.")
+    print("Training complete.")
+
+if __name__ == "__main__":
+    train()
