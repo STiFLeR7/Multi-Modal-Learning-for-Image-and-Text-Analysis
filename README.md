@@ -138,4 +138,4 @@ Validation Accuracy: 83.45%
     3. Add Beam Search Decoding for generating captions.
 ## Contributors
 
-**STiFLeR7** - Lead Developer
+**STiFLeR7** - Lead Developer, Researcher & Developer @ NIMS | AI/ML/DL | Tech Lead at CudaBit
